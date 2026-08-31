@@ -35,7 +35,7 @@ function getBaghdadNow(): string {
 }
 
 async function initializeDatabase(): Promise<void> {
-  const sqlModule = await initSqlJs({ locateFile: () => 'sql-wasm.wasm' });
+  const sqlModule = await initSqlJs({ locateFile: () => path.join(__dirname, 'sql-wasm.wasm') });
   SQL = sqlModule as SqlJsStatic;
   const dbPath = getDatabasePath();
   

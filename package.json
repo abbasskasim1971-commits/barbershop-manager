@@ -4,7 +4,8 @@
   "description": "Barbershop Management System — Offline-first desktop POS",
   "main": "dist/main/main.js",
   "scripts": {
-    "dev": "concurrently \"vite\" \"electron .\"",
+    "dev": "concurrently \"npm run watch:main\" \"vite\" \"electron .\"",
+    "watch:main": "tsc -p tsconfig.node.json --watch",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.node.json",
     "build": "npm run build:main && npm run build:renderer",
