@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { AuthProvider, useAuth } from "./presentation/hooks/useAuth";
 import Navigation from "./presentation/components/Navigation";
+import Login from "./presentation/screens/Login";
 import Dashboard from "./presentation/screens/Dashboard";
 import Pos from "./presentation/screens/Pos";
 import Inventory from "./presentation/screens/Inventory";
 import Expenses from "./presentation/screens/Expenses";
 import Reports from "./presentation/screens/Reports";
 import Settings from "./presentation/screens/Settings";
+import UserManagement from "./presentation/screens/UserManagement";
+import FirstRunSetup from "./presentation/screens/FirstRunSetup";
 
-type Screen = "dashboard" | "pos" | "inventory" | "expenses" | "reports" | "settings";
+type Screen =
+  "dashboard" | "pos" | "inventory" | "expenses" | "reports" | "settings" | "userManagement";
 
 const screenComponents: Record<Screen, React.FC> = {
   dashboard: Dashboard,
@@ -17,26 +22,83 @@ const screenComponents: Record<Screen, React.FC> = {
   expenses: Expenses,
   reports: Reports,
   settings: Settings,
+  userManagement: UserManagement,
 };
 
-const App: React.FC = () => {
+function AppContent() {
   const { t, i18n } = useTranslation();
+  const { user, isLoading, isAuthenticated, logout, canAccessUserManagement, checkOwnerExists } =
+    useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
   const [isRTL, setIsRTL] = useState(true);
+  const [ownerExists, setOwnerExists] = useState(false);
+  const [checkingOwner, setCheckingOwner] = useState(true);
 
   useEffect(() => {
     document.dir = isRTL ? "rtl" : "ltr";
   }, [isRTL]);
 
+  useEffect(() => {
+    const checkOwner = async () => {
+      const result = await checkOwnerExists();
+      setOwnerExists(result.exists);
+      setCheckingOwner(false);
+    };
+    checkOwner();
+  }, [checkOwnerExists]);
+
   const handleLanguageChange = (lng: string) => {
     i18n.changeLanguage(lng);
   };
 
+  const handleLogout = async () => {
+    await logout();
+  };
+
+  if (isLoading || checkingOwner) {
+    return (
+      <div className="app" dir={isRTL ? "rtl" : "ltr"}>
+        <div className="loading-screen">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!ownerExists) {
+    return <FirstRunSetup />;
+  }
+
+  if (!isAuthenticated()) {
+    return <Login />;
+  }
+
   const CurrentScreen = screenComponents[currentScreen];
+
+  const tabs = [
+    { id: "dashboard", label: t("dashboard"), permission: () => true },
+    { id: "pos", label: t("pos"), permission: () => true },
+    { id: "inventory", label: t("inventory"), permission: () => canAccessUserManagement() },
+    { id: "expenses", label: t("expenses"), permission: () => true },
+    { id: "reports", label: t("reports"), permission: () => true },
+    { id: "settings", label: t("settings"), permission: () => true },
+    {
+      id: "userManagement",
+      label: t("userManagement"),
+      permission: () => canAccessUserManagement(),
+    },
+  ];
+
+  const visibleTabs = tabs.filter((tab) => tab.permission());
 
   return (
     <div className="app" dir={isRTL ? "rtl" : "ltr"}>
-      <Navigation currentScreen={currentScreen} onScreenChange={setCurrentScreen} t={t} />
+      <Navigation
+        currentScreen={currentScreen}
+        onScreenChange={setCurrentScreen}
+        t={t}
+        tabs={visibleTabs}
+        user={user}
+        onLogout={handleLogout}
+      />
       <main className="main-content">
         <CurrentScreen />
       </main>
@@ -46,6 +108,14 @@ const App: React.FC = () => {
         <button onClick={() => setIsRTL(!isRTL)}>{isRTL ? "LTR" : "RTL"}</button>
       </div>
     </div>
+  );
+}
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 

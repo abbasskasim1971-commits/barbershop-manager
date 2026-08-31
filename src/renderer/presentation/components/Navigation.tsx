@@ -3,19 +3,18 @@ import React from "react";
 interface NavigationProps {
   currentScreen: string;
   onScreenChange: (screen: string) => void;
-  t: (key: string) => string;
+  tabs: { id: string; label: string; permission: () => boolean }[];
+  user: { id: number; username: string; role: string } | null;
+  onLogout: () => void;
 }
 
-const Navigation: React.FC<NavigationProps> = ({ currentScreen, onScreenChange, t }) => {
-  const tabs = [
-    { id: "dashboard", label: t("dashboard") },
-    { id: "pos", label: t("pos") },
-    { id: "inventory", label: t("inventory") },
-    { id: "expenses", label: t("expenses") },
-    { id: "reports", label: t("reports") },
-    { id: "settings", label: t("settings") },
-  ];
-
+const Navigation: React.FC<NavigationProps> = ({
+  currentScreen,
+  onScreenChange,
+  tabs,
+  user,
+  onLogout,
+}) => {
   return (
     <nav className="navigation">
       <ul className="nav-tabs">
@@ -30,6 +29,14 @@ const Navigation: React.FC<NavigationProps> = ({ currentScreen, onScreenChange, 
           </li>
         ))}
       </ul>
+      <div className="nav-user">
+        <span>
+          {user?.username} ({user?.role})
+        </span>
+        <button onClick={onLogout} className="logout-btn">
+          Logout
+        </button>
+      </div>
     </nav>
   );
 };
