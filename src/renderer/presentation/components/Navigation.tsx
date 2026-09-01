@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { getLowStockCount } from "../../application/inventoryService";
 
 interface NavigationProps {
   currentScreen: string;
@@ -15,6 +17,21 @@ const Navigation: React.FC<NavigationProps> = ({
   user,
   onLogout,
 }) => {
+  const { t } = useTranslation();
+  const [lowStockCount, setLowStockCount] = useState(0);
+
+  useEffect(() => {
+    const fetchLowStockCount = async () => {
+      try {
+        const count = await getLowStockCount();
+        setLowStockCount(count);
+      } catch {
+        setLowStockCount(0);
+      }
+    };
+    fetchLowStockCount();
+  }, []);
+
   return (
     <nav className="navigation">
       <ul className="nav-tabs">
@@ -25,6 +42,9 @@ const Navigation: React.FC<NavigationProps> = ({
               onClick={() => onScreenChange(tab.id)}
             >
               {tab.label}
+              {tab.id === "inventory" && lowStockCount > 0 && (
+                <span className="nav-badge">{lowStockCount}</span>
+              )}
             </button>
           </li>
         ))}
@@ -34,7 +54,7 @@ const Navigation: React.FC<NavigationProps> = ({
           {user?.username} ({user?.role})
         </span>
         <button onClick={onLogout} className="logout-btn">
-          Logout
+          {t("logout")}
         </button>
       </div>
     </nav>

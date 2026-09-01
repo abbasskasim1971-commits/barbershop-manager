@@ -24,9 +24,9 @@ export async function getAllProducts(
   return api.getAllProducts(sessionId, limit, offset, includeDeleted);
 }
 
-export async function getLowStockProducts(threshold = 5): Promise<Product[]> {
+export async function getLowStockProducts(): Promise<Product[]> {
   const sessionId = AuthService.getSessionId() || "";
-  return api.getLowStockProducts(sessionId, threshold);
+  return api.getLowStockProducts(sessionId);
 }
 
 export async function getProductById(id: number): Promise<Product | undefined> {

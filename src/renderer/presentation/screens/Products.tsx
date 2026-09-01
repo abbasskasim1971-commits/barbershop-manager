@@ -8,6 +8,7 @@ import {
   softDeleteProduct,
   getLowStockCount,
 } from "../../application/productService";
+import { addProductStock, removeProductStock } from "../../application/inventoryService";
 
 interface Product {
   id: number;
@@ -36,6 +37,9 @@ const Products: React.FC = () => {
   const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [stockAdjustmentProduct, setStockAdjustmentProduct] = useState<Product | null>(null);
+  const [adjustmentType, setAdjustmentType] = useState<"add" | "remove">("add");
+  const [adjustmentQty, setAdjustmentQty] = useState("");
 
   const loadProducts = async () => {
     try {
@@ -136,6 +140,41 @@ const Products: React.FC = () => {
     setQuantity("");
     setLowStockThreshold("");
     setShowForm(false);
+  };
+
+  const openStockAdjustment = (product: Product, type: "add" | "remove") => {
+    setStockAdjustmentProduct(product);
+    setAdjustmentType(type);
+    setAdjustmentQty("");
+  };
+
+  const handleStockAdjustment = async () => {
+    if (!stockAdjustmentProduct) return;
+    const qty = parseInt(adjustmentQty);
+    if (isNaN(qty) || qty <= 0) {
+      setError(t("invalidQuantity"));
+      return;
+    }
+    setError("");
+    setSuccess("");
+    try {
+      let result;
+      if (adjustmentType === "add") {
+        result = await addProductStock(stockAdjustmentProduct.id, qty);
+      } else {
+        result = await removeProductStock(stockAdjustmentProduct.id, qty);
+      }
+      if (result.success) {
+        setSuccess(adjustmentType === "add" ? t("stockAdded") : t("stockRemoved"));
+        setStockAdjustmentProduct(null);
+        setAdjustmentQty("");
+      } else {
+        setError(result.error || t("operationFailed"));
+      }
+      loadProducts();
+    } catch {
+      setError(t("operationFailed"));
+    }
   };
 
   if (!canAccessProducts()) {
@@ -262,6 +301,53 @@ const Products: React.FC = () => {
         </div>
       )}
 
+      {stockAdjustmentProduct && (
+        <div className="form-modal">
+          <h2>
+            {adjustmentType === "add" ? t("addStock") : t("removeStock")} —{" "}
+            {stockAdjustmentProduct.name}
+          </h2>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleStockAdjustment();
+            }}
+          >
+            <div className="form-group">
+              <label htmlFor="adjustmentQty">{t("quantity")}</label>
+              <input
+                id="adjustmentQty"
+                type="number"
+                value={adjustmentQty}
+                onChange={(e) => setAdjustmentQty(e.target.value)}
+                required
+                min="1"
+                step="1"
+                placeholder={t("quantityPlaceholder")}
+                autoFocus
+              />
+            </div>
+            {adjustmentType === "remove" && (
+              <p className="info-text">
+                {t("currentStock")}: {stockAdjustmentProduct.quantity}
+              </p>
+            )}
+            <div className="form-actions">
+              <button type="submit" className="btn btn-primary" disabled={isLoading}>
+                {isLoading ? t("saving") : adjustmentType === "add" ? t("add") : t("remove")}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setStockAdjustmentProduct(null)}
+              >
+                {t("cancel")}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <div className="table-container">
         <table className="data-table">
           <thead>
@@ -279,7 +365,7 @@ const Products: React.FC = () => {
               <tr
                 key={product.id}
                 className={
-                  product.quantity <= product.lowStockThreshold && product.isDeleted === false
+                  product.quantity < product.lowStockThreshold && product.isDeleted === false
                     ? "low-stock"
                     : ""
                 }
@@ -288,13 +374,28 @@ const Products: React.FC = () => {
                 <td>{product.price.toLocaleString()} IQD</td>
                 <td>{product.costPrice.toLocaleString()} IQD</td>
                 <td
-                  className={product.quantity <= product.lowStockThreshold ? "low-stock-value" : ""}
+                  className={product.quantity < product.lowStockThreshold ? "low-stock-value" : ""}
                 >
                   {product.quantity}
                 </td>
                 <td>{product.lowStockThreshold}</td>
                 <td>
                   <div className="action-buttons">
+                    <button
+                      className="btn btn-sm btn-success"
+                      onClick={() => openStockAdjustment(product, "add")}
+                      title={t("addStock")}
+                    >
+                      +
+                    </button>
+                    <button
+                      className="btn btn-sm btn-warning"
+                      onClick={() => openStockAdjustment(product, "remove")}
+                      title={t("removeStock")}
+                      disabled={product.quantity <= 0}
+                    >
+                      -
+                    </button>
                     <button
                       className="btn btn-sm btn-secondary"
                       onClick={() => handleEdit(product)}

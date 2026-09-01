@@ -124,7 +124,7 @@ interface DbApi {
     offset?: number,
     includeDeleted?: boolean,
   ) => Promise<ProductRecord[]>;
-  getLowStockProducts: (sessionId: string, threshold?: number) => Promise<ProductRecord[]>;
+  getLowStockProducts: (sessionId: string) => Promise<ProductRecord[]>;
   getProductById: (sessionId: string, id: number) => Promise<ProductRecord | undefined>;
   createProduct: (
     sessionId: string,
@@ -152,6 +152,16 @@ interface DbApi {
     productId: number,
     newQuantity: number,
   ) => Promise<{ success: boolean; error?: string; changes?: number }>;
+  addProductStock: (
+    sessionId: string,
+    productId: number,
+    quantity: number,
+  ) => Promise<{ success: boolean; error?: string; oldQuantity?: number; newQuantity?: number }>;
+  removeProductStock: (
+    sessionId: string,
+    productId: number,
+    quantity: number,
+  ) => Promise<{ success: boolean; error?: string; oldQuantity?: number; newQuantity?: number }>;
   getLowStockCount: (sessionId: string) => Promise<number>;
   getActiveProducts: (sessionId: string) => Promise<ProductRecord[]>;
 

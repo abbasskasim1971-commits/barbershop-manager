@@ -93,12 +93,14 @@ interface DbApi {
 
   // Product methods
   getAllProducts: (sessionId: string, limit?: number, offset?: number, includeDeleted?: boolean) => Promise<ProductRecord[]>;
-  getLowStockProducts: (sessionId: string, threshold?: number) => Promise<ProductRecord[]>;
+  getLowStockProducts: (sessionId: string) => Promise<ProductRecord[]>;
   getProductById: (sessionId: string, id: number) => Promise<ProductRecord | undefined>;
   createProduct: (sessionId: string, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) => Promise<{ success: boolean; error?: string; id?: number }>;
   updateProduct: (sessionId: string, id: number, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) => Promise<{ success: boolean; error?: string; changes?: number }>;
   softDeleteProduct: (sessionId: string, id: number) => Promise<{ success: boolean; error?: string; changes?: number }>;
   updateProductStock: (sessionId: string, productId: number, newQuantity: number) => Promise<{ success: boolean; error?: string; changes?: number }>;
+  addProductStock: (sessionId: string, productId: number, quantity: number) => Promise<{ success: boolean; error?: string; oldQuantity?: number; newQuantity?: number }>;
+  removeProductStock: (sessionId: string, productId: number, quantity: number) => Promise<{ success: boolean; error?: string; oldQuantity?: number; newQuantity?: number }>;
   getLowStockCount: (sessionId: string) => Promise<number>;
   getActiveProducts: (sessionId: string) => Promise<ProductRecord[]>;
 
@@ -175,18 +177,22 @@ contextBridge.exposeInMainWorld('api', {
   // Product methods
   getAllProducts: (sessionId: string, limit = 100, offset = 0, includeDeleted = false) =>
     ipcRenderer.invoke('products:getAll', sessionId, limit, offset, includeDeleted),
-  getLowStockProducts: (sessionId: string, threshold = 5) =>
-    ipcRenderer.invoke('products:getLowStock', sessionId, threshold),
-  getProductById: (sessionId: string, id: number) =>
-    ipcRenderer.invoke('products:getById', sessionId, id),
-  createProduct: (sessionId: string, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) =>
-    ipcRenderer.invoke('products:create', sessionId, name, price, costPrice, quantity, lowStockThreshold),
-  updateProduct: (sessionId: string, id: number, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) =>
-    ipcRenderer.invoke('products:update', sessionId, id, name, price, costPrice, quantity, lowStockThreshold),
-  softDeleteProduct: (sessionId: string, id: number) =>
-    ipcRenderer.invoke('products:delete', sessionId, id),
-  updateProductStock: (sessionId: string, productId: number, newQuantity: number) =>
-    ipcRenderer.invoke('products:updateStock', sessionId, productId, newQuantity),
+   getLowStockProducts: (sessionId: string) =>
+     ipcRenderer.invoke('products:getLowStock', sessionId),
+   getProductById: (sessionId: string, id: number) =>
+     ipcRenderer.invoke('products:getById', sessionId, id),
+   createProduct: (sessionId: string, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) =>
+     ipcRenderer.invoke('products:create', sessionId, name, price, costPrice, quantity, lowStockThreshold),
+   updateProduct: (sessionId: string, id: number, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) =>
+     ipcRenderer.invoke('products:update', sessionId, id, name, price, costPrice, quantity, lowStockThreshold),
+   softDeleteProduct: (sessionId: string, id: number) =>
+     ipcRenderer.invoke('products:delete', sessionId, id),
+   updateProductStock: (sessionId: string, productId: number, newQuantity: number) =>
+     ipcRenderer.invoke('products:updateStock', sessionId, productId, newQuantity),
+   addProductStock: (sessionId: string, productId: number, quantity: number) =>
+     ipcRenderer.invoke('products:addStock', sessionId, productId, quantity),
+   removeProductStock: (sessionId: string, productId: number, quantity: number) =>
+     ipcRenderer.invoke('products:removeStock', sessionId, productId, quantity),
   getLowStockCount: (sessionId: string) =>
     ipcRenderer.invoke('products:getLowStockCount', sessionId),
   getActiveProducts: (sessionId: string) =>

@@ -901,10 +901,10 @@ function setupIPC(): void {
     return mapProducts(runQuery(`SELECT * FROM products ${whereClause} ORDER BY name LIMIT ? OFFSET ?`, [limit, offset] as BindParams));
   });
 
-  ipcMain.handle('products:getLowStock', async (_event, sessionId: string, threshold = 5) => {
+   ipcMain.handle('products:getLowStock', async (_event, sessionId: string) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return [];
-    return mapProducts(runQuery("SELECT * FROM products WHERE quantity < ? AND is_deleted = 0", [threshold] as BindParams));
+    return mapProducts(runQuery('SELECT * FROM products WHERE quantity < low_stock_threshold AND is_deleted = 0'));
   });
 
   ipcMain.handle('products:getById', async (_event, sessionId: string, id: number) => {
@@ -923,7 +923,7 @@ function setupIPC(): void {
   ipcMain.handle('products:getLowStockCount', async (_event, sessionId: string) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return 0;
-    const result = runQuery("SELECT COUNT(*) as count FROM products WHERE quantity <= low_stock_threshold AND is_deleted = 0");
+     const result = runQuery('SELECT COUNT(*) as count FROM products WHERE quantity < low_stock_threshold AND is_deleted = 0');
     return (result[0]?.[0] as number) || 0;
   });
 
@@ -1041,6 +1041,56 @@ function setupIPC(): void {
     addAuditLog('products', productId, 'quantity', String(oldQty), String(newQuantity), `user:${session.userId}`);
 
     return { success: true, changes: result.changes };
+  });
+
+  ipcMain.handle('products:addStock', async (_event, sessionId: string, productId: number, quantity: number) => {
+    const session = requireAuth(sessionId, ['owner', 'manager']);
+    if (!session) return { success: false, error: 'Unauthorized' };
+
+    if (quantity <= 0) {
+      return { success: false, error: 'Quantity to add must be greater than zero' };
+    }
+
+    const oldProduct = runOne('SELECT * FROM products WHERE id = ?', [productId] as BindParams);
+    if (!oldProduct) {
+      return { success: false, error: 'Product not found' };
+    }
+
+    const oldQty = oldProduct[4] as number;
+    const newQty = oldQty + quantity;
+    runSql('UPDATE products SET quantity = ?, updated_at = ? WHERE id = ?', [newQty, getUtcNow(), productId] as BindParams);
+
+    addAuditLog('products', productId, 'quantity', String(oldQty), String(newQty), `user:${session.userId}`);
+    logSystemEvent('inventory_added', `Added ${quantity} to product ${oldProduct[1] as string} (qty: ${newQty})`, 1);
+
+    return { success: true, oldQuantity: oldQty, newQuantity: newQty };
+  });
+
+  ipcMain.handle('products:removeStock', async (_event, sessionId: string, productId: number, quantity: number) => {
+    const session = requireAuth(sessionId, ['owner', 'manager']);
+    if (!session) return { success: false, error: 'Unauthorized' };
+
+    if (quantity <= 0) {
+      return { success: false, error: 'Quantity to remove must be greater than zero' };
+    }
+
+    const oldProduct = runOne('SELECT * FROM products WHERE id = ?', [productId] as BindParams);
+    if (!oldProduct) {
+      return { success: false, error: 'Product not found' };
+    }
+
+    const oldQty = oldProduct[4] as number;
+    if (oldQty < quantity) {
+      return { success: false, error: 'Cannot remove more stock than available' };
+    }
+
+    const newQty = oldQty - quantity;
+    runSql('UPDATE products SET quantity = ?, updated_at = ? WHERE id = ?', [newQty, getUtcNow(), productId] as BindParams);
+
+    addAuditLog('products', productId, 'quantity', String(oldQty), String(newQty), `user:${session.userId}`);
+    logSystemEvent('inventory_removed', `Removed ${quantity} from product ${oldProduct[1] as string} (qty: ${newQty})`, 1);
+
+    return { success: true, oldQuantity: oldQty, newQuantity: newQty };
   });
 
   // Expense Category IPC handlers (owner or manager)
