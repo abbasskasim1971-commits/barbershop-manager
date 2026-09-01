@@ -76,10 +76,13 @@
 - [ ] Cash drawer tracking (amount in drawer)
 - [ ] Invoice totals in IQD, no rounding
 - [ ] No receipt printing
+- [ ] **Cash handling: Manager collects cash** (applies to both service and product sales)
+- [ ] **No receipt/ticket printing**
 - [ ] **Preserve applicable product cost price on each product sale line at sale time** (historical COGS)
 - [ ] **Maintain service/product line separation** for distinct financial treatment
 - [ ] **Ensure commission applies only to service lines** (never product lines)
 - [ ] **Ensure sale correction reverses all financial side effects**: inventory, commission, COGS, gross profit
+- [ ] **Historical product cost price captured on each product sale line** at sale time (for historical COGS)
 
 **Deliverable:** Full POS workflow — sell services, sell products, correct mistakes, track cash; historical cost preserved on sale lines; financial integrity maintained.
 
@@ -106,7 +109,8 @@
 
 - [ ] Commission rate per barber with effective date (not a single mutable field)
 - [ ] Commission rate history preserved — old rates still apply to old sales
-- [ ] Commission earned only on service portions of sales (never product)
+- [ ] Commission earned **only on service portions of sales** (never on products)
+- [ ] **Commission applies ONLY to service lines** (never on product lines)
 - [ ] Barber dues/amounts owed — computed per period
 - [ ] Owner report of barber commissions and dues
 - [ ] Commission rate management screen (Owner only)
@@ -126,6 +130,7 @@
 - [ ] Auto-trigger backup after EOD closing (keep last 30 backups)
 - [ ] Backup destination path configurable by owner in Settings
 - [ ] Manual "Backup now" and "Restore" actions in Settings
+- [ ] **Cash handling: Manager collects cash** (applies to both service and product sales)
 
 **Deliverable:** Manager/Owner can close a shift, reconcile cash, and have a backup created automatically.
 
@@ -137,7 +142,7 @@
 
 - [ ] Sales reports: total sales, breakdown by service/product, date-filtered
 - [ ] Date filtering: daily, weekly, monthly presets + custom date range
-- [ ] Barber reports: work done and commission dues per barber per period
+- [ ] Barber reports: work done and commission dues per barber, per period
 - [ ] Barber performance comparison report (rank by revenue/services sold)
 - [ ] End of Day / shift-closing report (Manager-accessible only)
 - [ ] **Shop Profit/Loss report (Owner only):** Revenue (service + product), COGS (historical product cost), Gross Profit, Barber Commissions, Operating Expenses, Net Shop Profit
@@ -168,7 +173,7 @@
 
 ---
 
-## Phase 11: WhatsApp Integration (Shift-Closing)
+## Phase 10: WhatsApp Integration (Shift-Closing)
 
 **Goal:** Manager can send EOD report to owner via WhatsApp.
 
@@ -182,7 +187,7 @@
 
 ---
 
-## Phase 12: Dashboard & Polish
+## Phase 11: Dashboard & Polish
 
 **Goal:** Home dashboard and final UX refinement.
 
@@ -196,7 +201,7 @@
 
 ---
 
-## Phase 13: Testing, Hardening & Launch
+## Phase 11: Testing, Hardening & Launch
 
 **Goal:** Reliability, performance, and deployment readiness.
 
@@ -221,4 +226,39 @@
 | 🟠 High | 7–8 | Commission, EOD closing |
 | 🟡 Medium | 9 | Reporting |
 | 🟡 Medium | 10 | Multi-station sync |
-| 🟢 Lower | 11–13 | WhatsApp, dashboard, testing |
+| 🟢 Lower | 11 | WhatsApp integration |
+| 🟢 Lower | 12 | Dashboard & polish |
+| 🟢 Lower | 13 | Testing, hardening & launch |
+
+---
+
+## Financial Dependency Chain
+
+```
+Sales (Phase 5)
+    ↓
+Historical Product Cost on Sale Lines (Phase 5)
+    ↓
+COGS (Phase 5 → Phase 9)
+    ↓
+Gross Profit = Sales Revenue − COGS
+    ↓
+Barber Commissions (Phase 7, service-only)
+    ↓
+Operating Expenses (Phase 3/4)
+    ↓
+Net Shop Profit = Gross Profit − Barber Commissions − Operating Expenses
+```
+
+**Dependency Chain:**
+- Phase 4 (Inventory) → provides stock levels, low-stock alerts for Phase 5
+- Phase 5 (POS) → provides sales data, historical cost on sale lines, service/product separation
+- Phase 7 (Commission) depends on Phase 5 (service sales data)
+- Phase 8 (EOD) depends on Phase 5 (sales) + Phase 7 (commissions)
+- Phase 9 (Profit/Loss) depends on Phase 5 (sales/revenue), Phase 7 (commissions), Phase 4 (inventory/COGS)
+
+---
+
+## Phase 3 Migration Note
+
+**Migration Numbering:** Phase 3 uses migration `002_phase3_schema`. This follows `001_initial`. There is NO `002_auth_password_hash` migration — the `password_hash` and `pin_hash` columns are created in `001_initial`. No collision exists. No renumbering is required.
