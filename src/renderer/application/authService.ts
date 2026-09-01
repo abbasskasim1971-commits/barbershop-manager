@@ -94,6 +94,11 @@ export class AuthService {
     return role === "owner" || role === "manager";
   }
 
+  static canAccessExpenseCategories(): boolean {
+    const role = this.currentUser?.role;
+    return role === "owner" || role === "manager";
+  }
+
   static canAccessCommissionManagement(): boolean {
     return this.currentUser?.role === "owner";
   }

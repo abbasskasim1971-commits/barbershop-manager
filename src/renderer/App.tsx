@@ -11,9 +11,21 @@ import Reports from "./presentation/screens/Reports";
 import Settings from "./presentation/screens/Settings";
 import UserManagement from "./presentation/screens/UserManagement";
 import FirstRunSetup from "./presentation/screens/FirstRunSetup";
+import Services from "./presentation/screens/Services";
+import Products from "./presentation/screens/Products";
+import ExpenseCategories from "./presentation/screens/ExpenseCategories";
 
 type Screen =
-  "dashboard" | "pos" | "inventory" | "expenses" | "reports" | "settings" | "userManagement";
+  | "dashboard"
+  | "pos"
+  | "inventory"
+  | "expenses"
+  | "reports"
+  | "settings"
+  | "userManagement"
+  | "services"
+  | "products"
+  | "expenseCategories";
 
 const screenComponents: Record<Screen, React.FC> = {
   dashboard: Dashboard,
@@ -23,6 +35,9 @@ const screenComponents: Record<Screen, React.FC> = {
   reports: Reports,
   settings: Settings,
   userManagement: UserManagement,
+  services: Services,
+  products: Products,
+  expenseCategories: ExpenseCategories,
 };
 
 function AppContent() {
@@ -76,7 +91,10 @@ function AppContent() {
   const tabs = [
     { id: "dashboard", label: t("dashboard"), permission: () => true },
     { id: "pos", label: t("pos"), permission: () => true },
+    { id: "services", label: t("services"), permission: () => true },
+    { id: "products", label: t("products"), permission: () => true },
     { id: "inventory", label: t("inventory"), permission: () => canAccessUserManagement() },
+    { id: "expenseCategories", label: t("expenseCategories"), permission: () => true },
     { id: "expenses", label: t("expenses"), permission: () => true },
     { id: "reports", label: t("reports"), permission: () => true },
     { id: "settings", label: t("settings"), permission: () => true },

@@ -44,6 +44,7 @@ interface AuthContextType {
   canAccessExpenses: () => boolean;
   canAccessServices: () => boolean;
   canAccessProducts: () => boolean;
+  canAccessExpenseCategories: () => boolean;
   canAccessCommissionManagement: () => boolean;
   canAccessUserManagement: () => boolean;
   canAccessSettings: () => boolean;
@@ -148,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         canAccessExpenses: () => AuthService.canAccessExpenses(),
         canAccessServices: () => AuthService.canAccessServices(),
         canAccessProducts: () => AuthService.canAccessProducts(),
+        canAccessExpenseCategories: () => AuthService.canAccessExpenseCategories(),
         canAccessCommissionManagement: () => AuthService.canAccessCommissionManagement(),
         canAccessUserManagement: () => AuthService.canAccessUserManagement(),
         canAccessSettings: () => AuthService.canAccessSettings(),

@@ -12,6 +12,7 @@ export interface User {
 export interface Service {
   id: number;
   name: string;
+  description: string;
   price: number;
   isDeleted: boolean;
   createdAt: string;
@@ -22,6 +23,7 @@ export interface Product {
   id: number;
   name: string;
   price: number;
+  costPrice: number;
   quantity: number;
   lowStockThreshold: number;
   isDeleted: boolean;
