@@ -1,10 +1,7 @@
-import {
-  query,
-  getOne,
-  insert,
-  update,
-  softDelete,
-} from "../infrastructure/database/databaseService";
+import { AuthService } from "./authService";
+import { logEvent } from "../infrastructure/database/databaseService";
+
+const api = window.api;
 
 export interface Product {
   id: number;
@@ -23,19 +20,18 @@ export async function getAllProducts(
   offset = 0,
   includeDeleted = false,
 ): Promise<Product[]> {
-  const whereClause = includeDeleted ? "" : "WHERE is_deleted = 0";
-  return query(`SELECT * FROM products ${whereClause} ORDER BY name LIMIT ? OFFSET ?`, [
-    limit,
-    offset,
-  ]);
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getAllProducts(sessionId, limit, offset, includeDeleted);
 }
 
 export async function getLowStockProducts(threshold = 5): Promise<Product[]> {
-  return query("SELECT * FROM products WHERE quantity < ? AND is_deleted = 0", [threshold]);
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getLowStockProducts(sessionId, threshold);
 }
 
 export async function getProductById(id: number): Promise<Product | undefined> {
-  return getOne("SELECT * FROM products WHERE id = ?", [id]);
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getProductById(sessionId, id);
 }
 
 export async function createProduct(
@@ -44,7 +40,7 @@ export async function createProduct(
   costPrice: number,
   quantity: number,
   lowStockThreshold: number,
-): Promise<{ changes: number; lastInsertRowid: number }> {
+): Promise<{ success: boolean; error?: string; id?: number }> {
   if (!name || !name.trim()) {
     throw new Error("Product name is required");
   }
@@ -61,14 +57,17 @@ export async function createProduct(
     throw new Error("Low stock threshold cannot be negative");
   }
 
-  const result = await insert("products", {
-    name: name.trim(),
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.createProduct(
+    sessionId,
+    name,
     price,
-    cost_price: costPrice,
+    costPrice,
     quantity,
-    low_stock_threshold: lowStockThreshold,
-    is_deleted: 0,
-  });
+    lowStockThreshold,
+  );
+
+  await logEvent(sessionId, "product_created", `Product created: ${name}`, 1);
 
   return result;
 }
@@ -80,7 +79,7 @@ export async function updateProduct(
   costPrice: number,
   quantity: number,
   lowStockThreshold: number,
-): Promise<{ changes: number }> {
+): Promise<{ success: boolean; error?: string; changes?: number }> {
   if (!name || !name.trim()) {
     throw new Error("Product name is required");
   }
@@ -97,32 +96,50 @@ export async function updateProduct(
     throw new Error("Low stock threshold cannot be negative");
   }
 
-  return update("products", id, {
-    name: name.trim(),
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.updateProduct(
+    sessionId,
+    id,
+    name,
     price,
-    cost_price: costPrice,
+    costPrice,
     quantity,
-    low_stock_threshold: lowStockThreshold,
-  });
+    lowStockThreshold,
+  );
+
+  await logEvent(sessionId, "product_updated", `Product updated: ${name}`, 1);
+
+  return result;
 }
 
-export async function softDeleteProduct(id: number): Promise<{ changes: number }> {
-  return softDelete("products", id);
+export async function softDeleteProduct(
+  id: number,
+): Promise<{ success: boolean; error?: string; changes?: number }> {
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.softDeleteProduct(sessionId, id);
+
+  await logEvent(sessionId, "product_deleted", `Product deleted: ${id}`, 1);
+
+  return result;
 }
 
 export async function updateProductStock(
   productId: number,
   newQuantity: number,
-): Promise<{ changes: number }> {
+): Promise<{ success: boolean; error?: string; changes?: number }> {
   if (newQuantity < 0) {
     throw new Error("Quantity cannot be negative");
   }
-  return update("products", productId, { quantity: newQuantity });
+  const sessionId = AuthService.getSessionId() || "";
+  return api.updateProductStock(sessionId, productId, newQuantity);
 }
 
 export async function getLowStockCount(): Promise<number> {
-  const result = await query(
-    "SELECT COUNT(*) as count FROM products WHERE quantity <= low_stock_threshold AND is_deleted = 0",
-  );
-  return (result[0]?.[0] as number) || 0;
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getLowStockCount(sessionId);
+}
+
+export async function getActiveProducts(): Promise<Product[]> {
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getActiveProducts(sessionId);
 }

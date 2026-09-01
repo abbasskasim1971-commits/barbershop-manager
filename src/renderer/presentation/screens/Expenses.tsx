@@ -71,18 +71,18 @@ const Expenses: React.FC = () => {
           parseFloat(amount) || 0,
           description,
         );
-        if (result.changes > 0) {
+        if (result.success) {
           setSuccess(t("expenseUpdated"));
           setEditingExpense(null);
         } else {
-          setError(t("updateFailed"));
+          setError(result.error || t("updateFailed"));
         }
       } else {
         const result = await createExpense(category, parseFloat(amount) || 0, description);
-        if (result.lastInsertRowid) {
+        if (result.success) {
           setSuccess(t("expenseCreated"));
         } else {
-          setError(t("createFailed"));
+          setError(result.error || t("createFailed"));
         }
       }
       setCategory("");
@@ -110,7 +110,7 @@ const Expenses: React.FC = () => {
 
     try {
       const result = await softDeleteExpense(id);
-      if (result.changes > 0) {
+      if (result.success) {
         setSuccess(t("expenseDeleted"));
         loadExpenses();
       } else {

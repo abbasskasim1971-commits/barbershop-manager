@@ -68,11 +68,11 @@ const Products: React.FC = () => {
           parseInt(quantity) || 0,
           parseInt(lowStockThreshold) || 0,
         );
-        if (result.changes > 0) {
+        if (result.success) {
           setSuccess(t("productUpdated"));
           setEditingProduct(null);
         } else {
-          setError(t("updateFailed"));
+          setError(result.error || t("updateFailed"));
         }
       } else {
         const result = await createProduct(
@@ -82,10 +82,10 @@ const Products: React.FC = () => {
           parseInt(quantity) || 0,
           parseInt(lowStockThreshold) || 0,
         );
-        if (result.lastInsertRowid) {
+        if (result.success) {
           setSuccess(t("productCreated"));
         } else {
-          setError(t("createFailed"));
+          setError(result.error || t("createFailed"));
         }
       }
       setName("");
@@ -117,7 +117,7 @@ const Products: React.FC = () => {
 
     try {
       const result = await softDeleteProduct(id);
-      if (result.changes > 0) {
+      if (result.success) {
         setSuccess(t("productDeleted"));
         loadProducts();
       } else {

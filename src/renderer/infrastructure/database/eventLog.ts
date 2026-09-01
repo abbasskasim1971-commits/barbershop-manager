@@ -1,4 +1,5 @@
-import { query, logEvent } from "../database/databaseService";
+import { logEvent } from "../database/databaseService";
+import { AuthService } from "../../application/authService";
 
 export type EventType =
   | "login"

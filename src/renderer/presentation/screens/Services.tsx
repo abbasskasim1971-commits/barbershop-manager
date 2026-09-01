@@ -58,18 +58,18 @@ const Services: React.FC = () => {
           description,
           parseInt(price) || 0,
         );
-        if (result.changes > 0) {
+        if (result.success) {
           setSuccess(t("serviceUpdated"));
           setEditingService(null);
         } else {
-          setError(t("updateFailed"));
+          setError(result.error || t("updateFailed"));
         }
       } else {
         const result = await createService(name, description, parseInt(price) || 0);
-        if (result.lastInsertRowid) {
+        if (result.success) {
           setSuccess(t("serviceCreated"));
         } else {
-          setError(t("createFailed"));
+          setError(result.error || t("createFailed"));
         }
       }
       setName("");
@@ -97,7 +97,7 @@ const Services: React.FC = () => {
 
     try {
       const result = await softDeleteService(id);
-      if (result.changes > 0) {
+      if (result.success) {
         setSuccess(t("serviceDeleted"));
         loadServices();
       } else {

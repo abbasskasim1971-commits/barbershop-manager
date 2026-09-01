@@ -1,11 +1,7 @@
-import {
-  query,
-  getOne,
-  insert,
-  update,
-  softDelete,
-  logEvent,
-} from "../infrastructure/database/databaseService";
+import { AuthService } from "./authService";
+import { logEvent } from "../infrastructure/database/databaseService";
+
+const api = window.api;
 
 export interface Service {
   id: number;
@@ -22,22 +18,20 @@ export async function getAllServices(
   offset = 0,
   includeDeleted = false,
 ): Promise<Service[]> {
-  const whereClause = includeDeleted ? "" : "WHERE is_deleted = 0";
-  return query(`SELECT * FROM services ${whereClause} ORDER BY name LIMIT ? OFFSET ?`, [
-    limit,
-    offset,
-  ]);
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getAllServices(sessionId, limit, offset, includeDeleted);
 }
 
 export async function getServiceById(id: number): Promise<Service | undefined> {
-  return getOne("SELECT * FROM services WHERE id = ?", [id]);
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getServiceById(sessionId, id);
 }
 
 export async function createService(
   name: string,
   description: string,
   price: number,
-): Promise<{ changes: number; lastInsertRowid: number }> {
+): Promise<{ success: boolean; error?: string; id?: number }> {
   if (!name || !name.trim()) {
     throw new Error("Service name is required");
   }
@@ -45,14 +39,10 @@ export async function createService(
     throw new Error("Price cannot be negative");
   }
 
-  const result = await insert("services", {
-    name: name.trim(),
-    description: description?.trim() || "",
-    price,
-    is_deleted: 0,
-  });
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.createService(sessionId, name, description, price);
 
-  await logEvent("service_created", `Service created: ${name} (${price} IQD)`, 1);
+  await logEvent(sessionId, "service_created", `Service created: ${name} (${price} IQD)`, 1);
 
   return result;
 }
@@ -62,8 +52,7 @@ export async function updateService(
   name: string,
   description: string,
   price: number,
-  _sessionId: string,
-): Promise<{ changes: number }> {
+): Promise<{ success: boolean; error?: string; changes?: number }> {
   if (!name || !name.trim()) {
     throw new Error("Service name is required");
   }
@@ -71,42 +60,26 @@ export async function updateService(
     throw new Error("Price cannot be negative");
   }
 
-  const oldService = await getOne("SELECT * FROM services WHERE id = ?", [id]);
-  if (!oldService) {
-    throw new Error("Service not found");
-  }
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.updateService(sessionId, id, name, description, price);
 
-  const result = await update("services", id, {
-    name: name.trim(),
-    description: description?.trim() || "",
-    price,
-  });
-
-  await logEvent(
-    "service_updated",
-    `Service updated: ${oldService[1] as string} -> ${name.trim()}`,
-    1,
-  );
+  await logEvent(sessionId, "service_updated", `Service updated: ${name} (${price} IQD)`, 1);
 
   return result;
 }
 
 export async function softDeleteService(
   id: number,
-  _sessionId: string,
-): Promise<{ changes: number }> {
-  const service = await getOne("SELECT * FROM services WHERE id = ?", [id]);
-  if (!service) {
-    throw new Error("Service not found");
-  }
+): Promise<{ success: boolean; error?: string; changes?: number }> {
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.softDeleteService(sessionId, id);
 
-  const result = await softDelete("services", id);
-
-  await logEvent("service_deleted", `Service deleted: ${service[1] as string}`, 1);
+  await logEvent(sessionId, "service_deleted", `Service deleted: ${id}`, 1);
 
   return result;
 }
 
 export async function getActiveServices(): Promise<Service[]> {
-  return query("SELECT * FROM services WHERE is_deleted = 0 ORDER BY name");
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getActiveServices(sessionId);
 }

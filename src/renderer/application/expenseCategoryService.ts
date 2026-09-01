@@ -1,4 +1,7 @@
-import { query, insert, update, softDelete } from "../infrastructure/database/databaseService";
+import { AuthService } from "./authService";
+import { logEvent } from "../infrastructure/database/databaseService";
+
+const api = window.api;
 
 export interface ExpenseCategory {
   id: number;
@@ -12,47 +15,61 @@ export async function getAllExpenseCategories(
   offset = 0,
   includeDeleted = false,
 ): Promise<ExpenseCategory[]> {
-  const whereClause = includeDeleted ? "" : "WHERE is_deleted = 0";
-  return query(`SELECT * FROM expense_categories ${whereClause} ORDER BY name LIMIT ? OFFSET ?`, [
-    limit,
-    offset,
-  ]);
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getAllExpenseCategories(sessionId, limit, offset, includeDeleted);
 }
 
 export async function getExpenseCategoryById(id: number): Promise<ExpenseCategory | undefined> {
-  return query("SELECT * FROM expense_categories WHERE id = ?", [id]);
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getExpenseCategoryById(sessionId, id);
 }
 
 export async function createExpenseCategory(
   name: string,
-): Promise<{ changes: number; lastInsertRowid: number }> {
+): Promise<{ success: boolean; error?: string; id?: number }> {
   if (!name || !name.trim()) {
     throw new Error("Category name is required");
   }
-  return insert("expense_categories", {
-    name: name.trim(),
-    is_deleted: 0,
-  });
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.createExpenseCategory(sessionId, name);
+
+  await logEvent(sessionId, "category_created", `Category created: ${name}`, 1);
+
+  return result;
 }
 
 export async function updateExpenseCategory(
   id: number,
   name: string,
-): Promise<{ changes: number }> {
+): Promise<{ success: boolean; error?: string; changes?: number }> {
   if (!name || !name.trim()) {
     throw new Error("Category name is required");
   }
-  return update("expense_categories", id, { name: name.trim() });
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.updateExpenseCategory(sessionId, id, name);
+
+  await logEvent(sessionId, "category_updated", `Category updated: ${name}`, 1);
+
+  return result;
 }
 
-export async function softDeleteExpenseCategory(id: number): Promise<{ changes: number }> {
-  return softDelete("expense_categories", id);
+export async function softDeleteExpenseCategory(
+  id: number,
+): Promise<{ success: boolean; error?: string; changes?: number }> {
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.softDeleteExpenseCategory(sessionId, id);
+
+  await logEvent(sessionId, "category_deleted", `Category deleted: ${id}`, 1);
+
+  return result;
 }
 
 export async function getActiveExpenseCategories(): Promise<ExpenseCategory[]> {
-  return query("SELECT * FROM expense_categories WHERE is_deleted = 0 ORDER BY name");
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getActiveExpenseCategories(sessionId);
 }
 
 export async function getExpenseCategories(): Promise<ExpenseCategory[]> {
-  return query("SELECT * FROM expense_categories WHERE is_deleted = 0 ORDER BY name");
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getActiveExpenseCategories(sessionId);
 }

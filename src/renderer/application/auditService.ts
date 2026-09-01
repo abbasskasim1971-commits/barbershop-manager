@@ -1,4 +1,6 @@
-import { query } from "../infrastructure/database/databaseService";
+import { AuthService } from "./authService";
+
+const api = window.api;
 
 export interface AuditEntry {
   id: number;
@@ -17,52 +19,19 @@ export async function getAuditLog(
   entityType?: string,
   entityId?: number,
 ): Promise<AuditEntry[]> {
-  let whereClause = "";
-  const params: unknown[] = [];
-
-  if (entityType && entityId) {
-    whereClause = "WHERE entity_type = ? AND entity_id = ?";
-    params.push(entityType, entityId);
-  } else if (entityType) {
-    whereClause = "WHERE entity_type = ?";
-    params.push(entityType);
-  } else if (entityId) {
-    whereClause = "WHERE entity_id = ?";
-    params.push(entityId);
-  }
-
-  params.push(limit, offset);
-  return query(
-    `SELECT * FROM audit_log ${whereClause} ORDER BY changed_at DESC LIMIT ? OFFSET ?`,
-    params,
-  );
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getAuditLog(sessionId, limit, offset, entityType, entityId);
 }
 
 export async function getAuditLogByEntity(
   entityType: string,
   entityId: number,
 ): Promise<AuditEntry[]> {
-  return query(
-    "SELECT * FROM audit_log WHERE entity_type = ? AND entity_id = ? ORDER BY changed_at DESC",
-    [entityType, entityId],
-  );
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getAuditLogByEntity(sessionId, entityType, entityId);
 }
 
 export async function getAuditLogCount(entityType?: string, entityId?: number): Promise<number> {
-  let whereClause = "";
-  const params: unknown[] = [];
-
-  if (entityType && entityId) {
-    whereClause = "WHERE entity_type = ? AND entity_id = ?";
-    params.push(entityType, entityId);
-  } else if (entityType) {
-    whereClause = "WHERE entity_type = ?";
-    params.push(entityType);
-  } else if (entityId) {
-    whereClause = "WHERE entity_id = ?";
-    params.push(entityId);
-  }
-
-  const result = query(`SELECT COUNT(*) as count FROM audit_log ${whereClause}`, params);
-  return (result[0]?.[0] as number) || 0;
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getAuditLogCount(sessionId, entityType, entityId);
 }

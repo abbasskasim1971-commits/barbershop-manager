@@ -42,8 +42,22 @@ const screenComponents: Record<Screen, React.FC> = {
 
 function AppContent() {
   const { t, i18n } = useTranslation();
-  const { user, isLoading, isAuthenticated, logout, canAccessUserManagement, checkOwnerExists } =
-    useAuth();
+  const {
+    user,
+    isLoading,
+    isAuthenticated,
+    logout,
+    canAccessUserManagement,
+    canAccessReports,
+    canAccessPos,
+    canAccessServices,
+    canAccessProducts,
+    canAccessInventory,
+    canAccessExpenseCategories,
+    canAccessExpenses,
+    canAccessSettings,
+    checkOwnerExists,
+  } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
   const [isRTL, setIsRTL] = useState(true);
   const [ownerExists, setOwnerExists] = useState(false);
@@ -89,15 +103,19 @@ function AppContent() {
   const CurrentScreen = screenComponents[currentScreen];
 
   const tabs = [
-    { id: "dashboard", label: t("dashboard"), permission: () => true },
-    { id: "pos", label: t("pos"), permission: () => true },
-    { id: "services", label: t("services"), permission: () => true },
-    { id: "products", label: t("products"), permission: () => true },
-    { id: "inventory", label: t("inventory"), permission: () => canAccessUserManagement() },
-    { id: "expenseCategories", label: t("expenseCategories"), permission: () => true },
-    { id: "expenses", label: t("expenses"), permission: () => true },
-    { id: "reports", label: t("reports"), permission: () => true },
-    { id: "settings", label: t("settings"), permission: () => true },
+    { id: "dashboard", label: t("dashboard"), permission: () => canAccessReports() },
+    { id: "pos", label: t("pos"), permission: () => canAccessPos() },
+    { id: "services", label: t("services"), permission: () => canAccessServices() },
+    { id: "products", label: t("products"), permission: () => canAccessProducts() },
+    { id: "inventory", label: t("inventory"), permission: () => canAccessInventory() },
+    {
+      id: "expenseCategories",
+      label: t("expenseCategories"),
+      permission: () => canAccessExpenseCategories(),
+    },
+    { id: "expenses", label: t("expenses"), permission: () => canAccessExpenses() },
+    { id: "reports", label: t("reports"), permission: () => canAccessReports() },
+    { id: "settings", label: t("settings"), permission: () => canAccessSettings() },
     {
       id: "userManagement",
       label: t("userManagement"),

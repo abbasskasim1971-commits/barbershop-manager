@@ -148,7 +148,7 @@ interface AuthApi {
   getCurrentUser: (sessionId: string) => Promise<{ user?: { id: number; username: string; role: string } }>;
   changePassword: (sessionId: string, oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   setPin: (sessionId: string, pin: string) => Promise<{ success: boolean; error?: string }>;
-  createUser: (sessionId: string, username: string, role: 'owner' | 'manager' | 'barber', password?: string, pin?: string) => Promise<{ success: boolean; error?: string; userId?: number }>;
+  createUser: (sessionId: string, username: string, role: UserRole, password?: string, pin?: string) => Promise<{ success: boolean; error?: string; userId?: number }>;
   deactivateUser: (sessionId: string, userId: number) => Promise<{ success: boolean; error?: string }>;
   listUsers: (sessionId: string) => Promise<{ users: { id: number; username: string; role: string; isActive: number; createdAt: string }[] }>;
   checkOwnerExists: () => Promise<{ exists: boolean }>;

@@ -32,6 +32,7 @@ interface AuthContextType {
     password: string,
   ) => Promise<{ success: boolean; error?: string }>;
   isAuthenticated: () => boolean;
+  getSessionId: () => string | null;
   hasRole: (role: "owner" | "manager" | "barber") => boolean;
   isOwner: () => boolean;
   isManager: () => boolean;
@@ -137,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         checkOwnerExists,
         firstRunSetup,
         isAuthenticated: () => AuthService.isAuthenticated(),
+        getSessionId: () => AuthService.getSessionId(),
         hasRole: (role: "owner" | "manager" | "barber") => AuthService.hasRole(role),
         isOwner: () => AuthService.isOwner(),
         isManager: () => AuthService.isManager(),

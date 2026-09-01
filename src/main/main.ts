@@ -110,15 +110,15 @@ function createWindow(): void {
   }
 }
 
-function getBaghdadNow(): string {
-  return new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+function getUtcNow(): string {
+  return new Date().toISOString();
 }
 
 async function initializeDatabase(): Promise<void> {
   const sqlModule = await initSqlJs({ locateFile: () => path.join(__dirname, 'sql-wasm.wasm') });
   SQL = sqlModule as SqlJsStatic;
   const dbPath = getDatabasePath();
-  
+
   if (fs.existsSync(dbPath)) {
     const fileBuffer = fs.readFileSync(dbPath);
     db = new SQL.Database(new Uint8Array(fileBuffer));
@@ -140,17 +140,17 @@ function saveDatabase(): void {
 
 function runMigrations(): void {
   if (!db) return;
-  
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
       name TEXT PRIMARY KEY,
       applied_at TEXT NOT NULL
     )
   `);
-  
+
   const appliedResult = db.exec('SELECT name FROM _migrations');
   const applied = new Set(appliedResult[0]?.values.map((v: SqlValue[]) => v[0]) || []);
-  
+
   if (!applied.has('001_initial')) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS users (
@@ -167,6 +167,7 @@ function runMigrations(): void {
       CREATE TABLE IF NOT EXISTS services (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
+        description TEXT,
         price INTEGER NOT NULL,
         is_deleted INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
@@ -177,6 +178,7 @@ function runMigrations(): void {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         price INTEGER NOT NULL,
+        cost_price INTEGER NOT NULL DEFAULT 0,
         quantity INTEGER NOT NULL DEFAULT 0,
         low_stock_threshold INTEGER NOT NULL DEFAULT 5,
         is_deleted INTEGER NOT NULL DEFAULT 0,
@@ -229,6 +231,7 @@ function runMigrations(): void {
         product_id INTEGER NOT NULL,
         name TEXT NOT NULL,
         price INTEGER NOT NULL,
+        cost_price INTEGER NOT NULL DEFAULT 0,
         quantity INTEGER NOT NULL DEFAULT 1,
         line_total INTEGER NOT NULL,
         FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE
@@ -272,10 +275,10 @@ function runMigrations(): void {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
     `);
-    
-    const now = getBaghdadNow();
+
+    const now = getUtcNow();
     db.run(
-      `INSERT OR IGNORE INTO expense_categories (name, is_deleted, created_at) VALUES 
+      `INSERT OR IGNORE INTO expense_categories (name, is_deleted, created_at) VALUES
         ('Rent', 0, ?),
         ('Utilities', 0, ?),
         ('Salaries', 0, ?),
@@ -308,7 +311,6 @@ function seedDefaultUser(): void {
   if (!db) return;
   const existing = db.exec("SELECT id FROM users WHERE role = 'owner'")[0]?.values[0];
   if (!existing) {
-    // No default owner - first-run setup required
     return;
   }
 }
@@ -556,9 +558,9 @@ function setupIPC(): void {
 
   ipcMain.handle('auth:loginPin', async (_event, pin: string, stationId: number) => {
     try {
-      const users = runQuery('SELECT * FROM users WHERE role = ? AND is_active = 1', ['barber']);
-      let matchedUser = null;
-      
+      const users = runQuery('SELECT * FROM users WHERE role = ? AND is_active = 1', ['barber'] as BindParams);
+      let matchedUser: SqlValue[] | null = null;
+
       for (const user of users) {
         const pinHash = user[4] as string | null;
         if (pinHash && bcrypt.compareSync(pin, pinHash)) {
@@ -568,25 +570,20 @@ function setupIPC(): void {
       }
 
       if (!matchedUser) {
-        runSql(
-          'INSERT INTO system_events (event_type, details, station_id, timestamp) VALUES (?, ?, ?, ?)',
-          ['login_failed', `Invalid PIN attempt`, stationId || 1, getBaghdadNow()] as BindParams
-        );
+        logSystemEvent('login_failed', `Invalid PIN attempt`, stationId || 1);
         return { success: false, error: 'Invalid PIN' };
       }
 
       const userId = matchedUser[0] as number;
       const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      
+
       database.run(
         'INSERT INTO user_sessions (session_id, user_id, station_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
-        [sessionId, userId, stationId || 1, getBaghdadNow(), new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()] as BindParams
+        [sessionId, userId, stationId || 1, getUtcNow(), new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()] as BindParams
       );
+      saveDatabase();
 
-      runSql(
-        'INSERT INTO system_events (event_type, details, station_id, timestamp) VALUES (?, ?, ?, ?)',
-        ['login_success', `Barber ${matchedUser[1]} logged in via PIN`, stationId || 1, getBaghdadNow()] as BindParams
-      );
+      logSystemEvent('login_success', `Barber ${matchedUser[1]} logged in via PIN`, stationId || 1);
 
       return { success: true, user: { id: userId, username: matchedUser[1] as string, role: 'barber' as const }, sessionId };
     } catch (error) {
@@ -598,10 +595,8 @@ function setupIPC(): void {
     try {
       if (sessionId) {
         database.run('DELETE FROM user_sessions WHERE session_id = ?', [sessionId] as BindParams);
-        runSql(
-          'INSERT INTO system_events (event_type, details, station_id, timestamp) VALUES (?, ?, ?, ?)',
-          ['logout', `Session ${sessionId} logged out`, 1, getBaghdadNow()] as BindParams
-        );
+        saveDatabase();
+        logSystemEvent('logout', `Session ${sessionId} logged out`, 1);
       }
       return { success: true };
     } catch (error) {
@@ -612,14 +607,11 @@ function setupIPC(): void {
   ipcMain.handle('auth:verifySession', async (_event, sessionId: string) => {
     try {
       if (!sessionId) return { valid: false };
-      
-      const session = runOne('SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?', [sessionId, getBaghdadNow()]);
+      const session = runOne('SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?', [sessionId, getUtcNow()] as BindParams);
       if (!session) return { valid: false };
-      
-      const user = runOne('SELECT id, username, role FROM users WHERE id = ? AND is_active = 1', [session[1]]);
+      const user = runOne('SELECT id, username, role FROM users WHERE id = ? AND is_active = 1', [session[1]] as BindParams);
       if (!user) return { valid: false };
-      
-      return { valid: true, user: { id: user[0] as number, username: user[1] as string, role: user[2] as 'owner' | 'manager' | 'barber' } };
+      return { valid: true, user: { id: user[0] as number, username: user[1] as string, role: user[2] as UserRole } };
     } catch (error) {
       return { valid: false };
     }
@@ -628,14 +620,11 @@ function setupIPC(): void {
   ipcMain.handle('auth:getCurrentUser', async (_event, sessionId: string) => {
     try {
       if (!sessionId) return { user: null };
-      
-      const session = runOne('SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?', [sessionId, getBaghdadNow()]);
+      const session = runOne('SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?', [sessionId, getUtcNow()] as BindParams);
       if (!session) return { user: null };
-      
-      const user = runOne('SELECT id, username, role FROM users WHERE id = ? AND is_active = 1', [session[1]]);
+      const user = runOne('SELECT id, username, role FROM users WHERE id = ? AND is_active = 1', [session[1]] as BindParams);
       if (!user) return { user: null };
-      
-      return { user: { id: user[0] as number, username: user[1] as string, role: user[2] as 'owner' | 'manager' | 'barber' } };
+      return { user: { id: user[0] as number, username: user[1] as string, role: user[2] as UserRole } };
     } catch (error) {
       return { user: null };
     }
@@ -643,91 +632,77 @@ function setupIPC(): void {
 
   ipcMain.handle('auth:changePassword', async (_event, sessionId: string, oldPassword: string, newPassword: string) => {
     try {
-      const session = runOne('SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?', [sessionId, getBaghdadNow()]);
+      const session = verifySession(sessionId);
       if (!session) return { success: false, error: 'Invalid session' };
-      
-      const userId = session[1] as number;
-      const user = runOne('SELECT * FROM users WHERE id = ?', [userId]);
+
+      const userId = session.userId;
+      const user = runOne('SELECT * FROM users WHERE id = ?', [userId] as BindParams);
       if (!user) return { success: false, error: 'User not found' };
-      
+
       const passwordHash = user[3] as string | null;
       if (!passwordHash || !bcrypt.compareSync(oldPassword, passwordHash)) {
         return { success: false, error: 'Current password is incorrect' };
       }
-      
+
       const newPasswordHash = bcrypt.hashSync(newPassword, 10);
-      database.run('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', [newPasswordHash, getBaghdadNow(), userId] as BindParams);
-      
-      runSql(
-        'INSERT INTO system_events (event_type, details, station_id, timestamp) VALUES (?, ?, ?, ?)',
-        ['password_changed', `Password changed for user ${user[1]}`, 1, getBaghdadNow()] as BindParams
-      );
-      
+      database.run('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', [newPasswordHash, getUtcNow(), userId] as BindParams);
+      saveDatabase();
+
+      logSystemEvent('password_changed', `Password changed for user ${user[1]}`, 1);
+
       return { success: true };
     } catch (error) {
       return { success: false, error: 'Failed to change password' };
     }
   });
 
-ipcMain.handle('auth:setPin', async (_event, sessionId: string, pin: string) => {
+  ipcMain.handle('auth:setPin', async (_event, sessionId: string, pin: string) => {
     try {
-      const session = runOne('SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?', [sessionId, getBaghdadNow()]);
+      const session = verifySession(sessionId);
       if (!session) return { success: false, error: 'Invalid session' };
-      
-      const userId = session[1] as number;
+
+      const userId = session.userId;
       const pinHash = bcrypt.hashSync(pin, 10);
-      // Check if PIN is already used by another active barber
-      const existingPin = runOne('SELECT id FROM users WHERE role = ? AND pin_hash = ? AND is_active = 1 AND id != ?', ['barber', pinHash, userId]);
+      const existingPin = runOne('SELECT id FROM users WHERE role = ? AND pin_hash = ? AND is_active = 1 AND id != ?', ['barber', pinHash, userId] as BindParams);
       if (existingPin) {
         return { success: false, error: 'PIN already in use by another active barber' };
       }
-      database.run('UPDATE users SET pin_hash = ?, updated_at = ? WHERE id = ?', [pinHash, getBaghdadNow(), userId] as BindParams);
-      
+      database.run('UPDATE users SET pin_hash = ?, updated_at = ? WHERE id = ?', [pinHash, getUtcNow(), userId] as BindParams);
+      saveDatabase();
+
       return { success: true };
     } catch (error) {
       return { success: false, error: 'Failed to set PIN' };
     }
   });
 
-  ipcMain.handle('auth:createUser', async (_event, sessionId: string, username: string, role: 'owner' | 'manager' | 'barber', password?: string, pin?: string) => {
+  ipcMain.handle('auth:createUser', async (_event, sessionId: string, username: string, role: UserRole, password?: string, pin?: string) => {
     try {
-      const session = runOne('SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?', [sessionId, getBaghdadNow()]);
-      if (!session) return { success: false, error: 'Invalid session' };
-      
-      const requesterId = session[1] as number;
-      const requester = runOne('SELECT role FROM users WHERE id = ?', [requesterId]);
-      if (!requester || requester[0] !== 'owner') {
-        return { success: false, error: 'Only owner can create users' };
-      }
-      
+      const session = requireAuth(sessionId, ['owner']);
+      if (!session) return { success: false, error: 'Only owner can create users' };
+
       if (role === 'owner') {
         return { success: false, error: 'Cannot create another owner' };
       }
-      
-      const now = getBaghdadNow();
+
+      const now = getUtcNow();
       const passwordHash = password ? bcrypt.hashSync(password, 10) : null;
       const pinHash = pin ? bcrypt.hashSync(pin, 10) : null;
-      // Check PIN uniqueness for barbers
       if (role === 'barber' && pinHash) {
-        const existingPin = runOne('SELECT id FROM users WHERE role = ? AND pin_hash = ? AND is_active = 1', ['barber', pinHash]);
+        const existingPin = runOne('SELECT id FROM users WHERE role = ? AND pin_hash = ? AND is_active = 1', ['barber', pinHash] as BindParams);
         if (existingPin) {
           return { success: false, error: 'PIN already in use by another active barber' };
         }
       }
-      
-      const result = database.run(
+
+      const result = runSql(
         'INSERT INTO users (username, role, password_hash, pin_hash, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [username, role, passwordHash, pinHash, 1, now, now] as BindParams
       );
-      
-      runSql(
-        'INSERT INTO system_events (event_type, details, station_id, timestamp) VALUES (?, ?, ?, ?)',
-        ['user_created', `User ${username} created with role ${role}`, 1, getBaghdadNow()] as BindParams
-      );
-      
-      const lastIdResult = database.exec('SELECT last_insert_rowid()');
-      const lastId = lastIdResult[0]?.values[0]?.[0] as number || 0;
-      return { success: true, userId: lastId };
+
+      logSystemEvent('user_created', `User ${username} created with role ${role}`, 1);
+
+      return { success: true, userId: result.lastInsertRowid };
     } catch (error) {
       return { success: false, error: 'Failed to create user' };
     }
@@ -735,32 +710,24 @@ ipcMain.handle('auth:setPin', async (_event, sessionId: string, pin: string) => 
 
   ipcMain.handle('auth:deactivateUser', async (_event, sessionId: string, userId: number) => {
     try {
-      const session = runOne('SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?', [sessionId, getBaghdadNow()]);
-      if (!session) return { success: false, error: 'Invalid session' };
-      
-      const requesterId = session[1] as number;
-      const requester = runOne('SELECT role FROM users WHERE id = ?', [requesterId]);
-      if (!requester || requester[0] !== 'owner') {
-        return { success: false, error: 'Only owner can deactivate users' };
-      }
-      
-      if (userId === requesterId) {
+      const session = requireAuth(sessionId, ['owner']);
+      if (!session) return { success: false, error: 'Only owner can deactivate users' };
+
+      if (userId === session.userId) {
         return { success: false, error: 'Cannot deactivate yourself' };
       }
-      
-      const targetUser = runOne('SELECT role FROM users WHERE id = ?', [userId]);
+
+      const targetUser = runOne('SELECT role FROM users WHERE id = ?', [userId] as BindParams);
       if (!targetUser) return { success: false, error: 'User not found' };
       if (targetUser[0] === 'owner') return { success: false, error: 'Cannot deactivate owner' };
-      
-      database.run('UPDATE users SET is_active = 0, updated_at = ? WHERE id = ?', [getBaghdadNow(), userId] as BindParams);
+
+      database.run('UPDATE users SET is_active = 0, updated_at = ? WHERE id = ?', [getUtcNow(), userId] as BindParams);
       database.run('DELETE FROM user_sessions WHERE user_id = ?', [userId] as BindParams);
-      
-      runSql(
-        'INSERT INTO system_events (event_type, details, station_id, timestamp) VALUES (?, ?, ?, ?)',
-        ['user_deactivated', `User ${userId} deactivated`, 1, getBaghdadNow()] as BindParams
-      );
-      
-return { success: true };
+      saveDatabase();
+
+      logSystemEvent('user_deactivated', `User id ${userId} deactivated`, 1);
+
+      return { success: true };
     } catch (error) {
       return { success: false, error: 'Failed to deactivate user' };
     }
@@ -768,15 +735,9 @@ return { success: true };
 
   ipcMain.handle('auth:listUsers', async (_event, sessionId: string) => {
     try {
-      const session = runOne('SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?', [sessionId, getBaghdadNow()]);
+      const session = requireAuth(sessionId, ['owner']);
       if (!session) return { users: [] };
-      
-      const requesterId = session[1] as number;
-      const requester = runOne('SELECT role FROM users WHERE id = ?', [requesterId]);
-      if (!requester || requester[0] !== 'owner') {
-        return { users: [] };
-      }
-      
+
       const users = runQuery('SELECT id, username, role, is_active, created_at FROM users ORDER BY id');
       return { users: users.map(u => ({ id: u[0] as number, username: u[1] as string, role: u[2] as string, isActive: u[3] as number, createdAt: u[4] as string })) };
     } catch (error) {

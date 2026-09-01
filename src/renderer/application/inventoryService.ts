@@ -1,25 +1,26 @@
-import { query, insert, update } from "../infrastructure/database/databaseService";
+import { AuthService } from "./authService";
+
+const api = window.api;
 
 export async function getAllProducts(limit = 100, offset = 0) {
-  return query("SELECT * FROM products WHERE is_deleted = 0 ORDER BY name LIMIT ? OFFSET ?", [
-    limit,
-    offset,
-  ]);
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getAllProducts(sessionId, limit, offset, false);
 }
 
 export async function getLowStockProducts(threshold = 5) {
-  return query("SELECT * FROM products WHERE quantity < ? AND is_deleted = 0", [threshold]);
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getLowStockProducts(sessionId, threshold);
 }
 
 export async function updateProductStock(productId: number, newQuantity: number) {
-  return update("products", productId, { quantity: newQuantity });
+  if (newQuantity < 0) {
+    throw new Error("Quantity cannot be negative");
+  }
+  const sessionId = AuthService.getSessionId() || "";
+  return api.updateProductStock(sessionId, productId, newQuantity);
 }
 
-export async function createProduct(data: {
-  name: string;
-  price: number;
-  quantity: number;
-  lowStockThreshold: number;
-}) {
-  return insert("products", { ...data, is_deleted: 0 });
+export async function getLowStockCount() {
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getLowStockCount(sessionId);
 }

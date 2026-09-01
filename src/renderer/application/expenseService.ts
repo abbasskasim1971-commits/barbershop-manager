@@ -1,10 +1,7 @@
-import {
-  query,
-  getOne,
-  insert,
-  update,
-  softDelete,
-} from "../infrastructure/database/databaseService";
+import { AuthService } from "./authService";
+import { logEvent } from "../infrastructure/database/databaseService";
+
+const api = window.api;
 
 export interface Expense {
   id: number;
@@ -21,22 +18,20 @@ export async function getAllExpenses(
   offset = 0,
   includeDeleted = false,
 ): Promise<Expense[]> {
-  const whereClause = includeDeleted ? "" : "WHERE is_deleted = 0";
-  return query(`SELECT * FROM expenses ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`, [
-    limit,
-    offset,
-  ]);
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getAllExpenses(sessionId, limit, offset, includeDeleted);
 }
 
 export async function getExpenseById(id: number): Promise<Expense | undefined> {
-  return getOne("SELECT * FROM expenses WHERE id = ?", [id]);
+  const sessionId = AuthService.getSessionId() || "";
+  return api.getExpenseById(sessionId, id);
 }
 
 export async function createExpense(
   category: string,
   amount: number,
   description: string,
-): Promise<{ changes: number; lastInsertRowid: number }> {
+): Promise<{ success: boolean; error?: string; id?: number }> {
   if (!category || !category.trim()) {
     throw new Error("Category is required");
   }
@@ -44,12 +39,10 @@ export async function createExpense(
     throw new Error("Amount must be greater than zero");
   }
 
-  const result = await insert("expenses", {
-    category: category.trim(),
-    amount,
-    description: description?.trim() || "",
-    is_deleted: 0,
-  });
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.createExpense(sessionId, category, amount, description);
+
+  await logEvent(sessionId, "expense_created", `Expense created: ${category} (${amount} IQD)`, 1);
 
   return result;
 }
@@ -59,7 +52,7 @@ export async function updateExpense(
   category: string,
   amount: number,
   description: string,
-): Promise<{ changes: number }> {
+): Promise<{ success: boolean; error?: string; changes?: number }> {
   if (!category || !category.trim()) {
     throw new Error("Category is required");
   }
@@ -67,13 +60,21 @@ export async function updateExpense(
     throw new Error("Amount must be greater than zero");
   }
 
-  return update("expenses", id, {
-    category: category.trim(),
-    amount,
-    description: description?.trim() || "",
-  });
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.updateExpense(sessionId, id, category, amount, description);
+
+  await logEvent(sessionId, "expense_updated", `Expense updated: ${category} (${amount} IQD)`, 1);
+
+  return result;
 }
 
-export async function softDeleteExpense(id: number): Promise<{ changes: number }> {
-  return softDelete("expenses", id);
+export async function softDeleteExpense(
+  id: number,
+): Promise<{ success: boolean; error?: string; changes?: number }> {
+  const sessionId = AuthService.getSessionId() || "";
+  const result = await api.softDeleteExpense(sessionId, id);
+
+  await logEvent(sessionId, "expense_deleted", `Expense deleted: ${id}`, 1);
+
+  return result;
 }

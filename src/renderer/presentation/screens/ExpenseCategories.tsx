@@ -17,7 +17,7 @@ interface ExpenseCategory {
 
 const ExpenseCategories: React.FC = () => {
   const { t } = useTranslation();
-  const { canAccessUserManagement } = useAuth();
+  const { canAccessExpenseCategories } = useAuth();
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ExpenseCategory | null>(null);
@@ -48,18 +48,18 @@ const ExpenseCategories: React.FC = () => {
     try {
       if (editingCategory) {
         const result = await updateExpenseCategory(editingCategory.id, name);
-        if (result.changes > 0) {
+        if (result.success) {
           setSuccess(t("categoryUpdated"));
           setEditingCategory(null);
         } else {
-          setError(t("updateFailed"));
+          setError(result.error || t("updateFailed"));
         }
       } else {
         const result = await createExpenseCategory(name);
-        if (result.lastInsertRowid) {
+        if (result.success) {
           setSuccess(t("categoryCreated"));
         } else {
-          setError(t("createFailed"));
+          setError(result.error || t("createFailed"));
         }
       }
       setName("");
@@ -83,7 +83,7 @@ const ExpenseCategories: React.FC = () => {
 
     try {
       const result = await softDeleteExpenseCategory(id);
-      if (result.changes > 0) {
+      if (result.success) {
         setSuccess(t("categoryDeleted"));
         loadCategories();
       } else {
@@ -100,7 +100,7 @@ const ExpenseCategories: React.FC = () => {
     setShowForm(false);
   };
 
-  if (!canAccessUserManagement()) {
+  if (!canAccessExpenseCategories()) {
     return (
       <div className="screen expense-categories">
         <h1>{t("expenseCategories")}</h1>
