@@ -1,57 +1,143 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+type UserRole = 'owner' | 'manager' | 'barber';
+
+interface ServiceRecord {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  isDeleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ProductRecord {
+  id: number;
+  name: string;
+  price: number;
+  costPrice: number;
+  quantity: number;
+  lowStockThreshold: number;
+  isDeleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CategoryRecord {
+  id: number;
+  name: string;
+  isDeleted: boolean;
+  createdAt: string;
+}
+
+interface ExpenseRecord {
+  id: number;
+  category: string;
+  amount: number;
+  description: string;
+  isDeleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AuditEntry {
+  id: number;
+  entityType: string;
+  entityId: number;
+  field: string;
+  oldValue: string;
+  newValue: string;
+  changedBy: string;
+  changedAt: string;
+}
+
+interface EventRecord {
+  id: number;
+  eventType: string;
+  details: string;
+  stationId: number;
+  timestamp: string;
+}
+
+interface CommissionRateRecord {
+  id: number;
+  barberId: number;
+  rate: number;
+  effectiveFrom: string;
+  isDeleted: boolean;
+  createdAt: string;
+}
+
+interface SaleRecord {
+  id: number;
+  barberId: number;
+  stationId: number;
+  totalAmount: number;
+  cashAmount: number;
+  isDeleted: boolean;
+  createdAt: string;
+  createdBy: number;
+}
+
 interface DbApi {
-  query: (sql: string, params?: unknown[]) => Promise<unknown[]>;
-  getOne: (sql: string, params?: unknown[]) => Promise<unknown>;
-  runSql: (sql: string, params?: unknown[]) => Promise<{ changes: number; lastInsertRowid: number }>;
-  insert: (table: string, row: Record<string, unknown>) => Promise<{ changes: number; lastInsertRowid: number }>;
-  update: (table: string, id: number, row: Record<string, unknown>) => Promise<{ changes: number }>;
-  softDelete: (table: string, id: number) => Promise<{ changes: number }>;
   getDbPath: () => Promise<string>;
-  getMigrations: () => Promise<{ name: string }[]>;
-  addMigration: (name: string) => Promise<void>;
-  logEvent: (eventType: string, details: string, stationId?: number) => Promise<void>;
-  getEvents: (limit?: number, offset?: number) => Promise<unknown[]>;
 
   // Service methods
-  getAllServices: (limit?: number, offset?: number, includeDeleted?: boolean) => Promise<unknown[]>;
-  getServiceById: (id: number) => Promise<unknown>;
-  createService: (name: string, description: string, price: number) => Promise<{ changes: number; lastInsertRowid: number }>;
-  updateService: (id: number, name: string, description: string, price: number) => Promise<{ changes: number }>;
-  softDeleteService: (id: number) => Promise<{ changes: number }>;
-  getActiveServices: () => Promise<unknown[]>;
+  getAllServices: (sessionId: string, limit?: number, offset?: number, includeDeleted?: boolean) => Promise<ServiceRecord[]>;
+  getServiceById: (sessionId: string, id: number) => Promise<ServiceRecord | undefined>;
+  createService: (sessionId: string, name: string, description: string, price: number) => Promise<{ success: boolean; error?: string; id?: number }>;
+  updateService: (sessionId: string, id: number, name: string, description: string, price: number) => Promise<{ success: boolean; error?: string; changes?: number }>;
+  softDeleteService: (sessionId: string, id: number) => Promise<{ success: boolean; error?: string; changes?: number }>;
+  getActiveServices: (sessionId: string) => Promise<ServiceRecord[]>;
 
   // Product methods
-  getAllProducts: (limit?: number, offset?: number, includeDeleted?: boolean) => Promise<unknown[]>;
-  getLowStockProducts: (threshold?: number) => Promise<unknown[]>;
-  getProductById: (id: number) => Promise<unknown>;
-  createProduct: (name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) => Promise<{ changes: number; lastInsertRowid: number }>;
-  updateProduct: (id: number, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) => Promise<{ changes: number }>;
-  softDeleteProduct: (id: number) => Promise<{ changes: number }>;
-  updateProductStock: (productId: number, newQuantity: number) => Promise<{ changes: number }>;
-  getLowStockCount: () => Promise<number>;
-  getActiveProducts: () => Promise<unknown[]>;
+  getAllProducts: (sessionId: string, limit?: number, offset?: number, includeDeleted?: boolean) => Promise<ProductRecord[]>;
+  getLowStockProducts: (sessionId: string, threshold?: number) => Promise<ProductRecord[]>;
+  getProductById: (sessionId: string, id: number) => Promise<ProductRecord | undefined>;
+  createProduct: (sessionId: string, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) => Promise<{ success: boolean; error?: string; id?: number }>;
+  updateProduct: (sessionId: string, id: number, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) => Promise<{ success: boolean; error?: string; changes?: number }>;
+  softDeleteProduct: (sessionId: string, id: number) => Promise<{ success: boolean; error?: string; changes?: number }>;
+  updateProductStock: (sessionId: string, productId: number, newQuantity: number) => Promise<{ success: boolean; error?: string; changes?: number }>;
+  getLowStockCount: (sessionId: string) => Promise<number>;
+  getActiveProducts: (sessionId: string) => Promise<ProductRecord[]>;
 
   // Expense Category methods
-  getAllExpenseCategories: (limit?: number, offset?: number, includeDeleted?: boolean) => Promise<unknown[]>;
-  getExpenseCategoryById: (id: number) => Promise<unknown>;
-  createExpenseCategory: (name: string) => Promise<{ changes: number; lastInsertRowid: number }>;
-  updateExpenseCategory: (id: number, name: string) => Promise<{ changes: number }>;
-  softDeleteExpenseCategory: (id: number) => Promise<{ changes: number }>;
-  getActiveExpenseCategories: () => Promise<unknown[]>;
+  getAllExpenseCategories: (sessionId: string, limit?: number, offset?: number, includeDeleted?: boolean) => Promise<CategoryRecord[]>;
+  getExpenseCategoryById: (sessionId: string, id: number) => Promise<CategoryRecord | undefined>;
+  createExpenseCategory: (sessionId: string, name: string) => Promise<{ success: boolean; error?: string; id?: number }>;
+  updateExpenseCategory: (sessionId: string, id: number, name: string) => Promise<{ success: boolean; error?: string; changes?: number }>;
+  softDeleteExpenseCategory: (sessionId: string, id: number) => Promise<{ success: boolean; error?: string; changes?: number }>;
+  getActiveExpenseCategories: (sessionId: string) => Promise<CategoryRecord[]>;
 
   // Expense methods
-  getAllExpenses: (limit?: number, offset?: number, includeDeleted?: boolean) => Promise<unknown[]>;
-  getExpenseById: (id: number) => Promise<unknown>;
-  createExpense: (category: string, amount: number, description: string) => Promise<{ changes: number; lastInsertRowid: number }>;
-  updateExpense: (id: number, category: string, amount: number, description: string) => Promise<{ changes: number }>;
-  softDeleteExpense: (id: number) => Promise<{ changes: number }>;
-  getExpenseCategories: () => Promise<unknown[]>;
+  getAllExpenses: (sessionId: string, limit?: number, offset?: number, includeDeleted?: boolean) => Promise<ExpenseRecord[]>;
+  getExpenseById: (sessionId: string, id: number) => Promise<ExpenseRecord | undefined>;
+  createExpense: (sessionId: string, category: string, amount: number, description: string) => Promise<{ success: boolean; error?: string; id?: number }>;
+  updateExpense: (sessionId: string, id: number, category: string, amount: number, description: string) => Promise<{ success: boolean; error?: string; changes?: number }>;
+  softDeleteExpense: (sessionId: string, id: number) => Promise<{ success: boolean; error?: string; changes?: number }>;
+  getExpenseCategories: (sessionId: string) => Promise<CategoryRecord[]>;
 
   // Audit Log methods
-  getAuditLog: (limit?: number, offset?: number, entityType?: string, entityId?: number) => Promise<unknown[]>;
-  getAuditLogByEntity: (entityType: string, entityId: number) => Promise<unknown[]>;
-  getAuditLogCount: (entityType?: string, entityId?: number) => Promise<number>;
+  getAuditLog: (sessionId: string, limit?: number, offset?: number, entityType?: string, entityId?: number) => Promise<AuditEntry[]>;
+  getAuditLogByEntity: (sessionId: string, entityType: string, entityId: number) => Promise<AuditEntry[]>;
+  getAuditLogCount: (sessionId: string, entityType?: string, entityId?: number) => Promise<number>;
+
+  // Commission methods
+  getCommissionRate: (sessionId: string, barberId: number) => Promise<CommissionRateRecord | null>;
+  getCommissionDues: (sessionId: string, barberId: number, startDate: string, endDate: string) => Promise<number>;
+  setCommissionRate: (sessionId: string, barberId: number, rate: number) => Promise<{ success: boolean; error?: string }>;
+
+  // Sales methods
+  getSaleById: (sessionId: string, id: number) => Promise<SaleRecord | undefined>;
+  getAllSales: (sessionId: string, limit?: number, offset?: number) => Promise<SaleRecord[]>;
+  getSalesForBarber: (sessionId: string, barberId: number, date: string) => Promise<SaleRecord[]>;
+  createSale: (sessionId: string, barberId: number, stationId: number, totalAmount: number, cashAmount: number, createdBy: number, lines: Array<{ type: 'service' | 'product'; itemId: number; name: string; price: number; costPrice?: number; quantity: number }>) => Promise<{ success: boolean; error?: string; id?: number }>;
+  correctSale: (sessionId: string, saleId: number) => Promise<{ success: boolean; error?: string }>;
+
+  // System event log
+  logEvent: (sessionId: string, eventType: string, details: string, stationId?: number) => Promise<void>;
+  getEvents: (sessionId: string, limit?: number, offset?: number) => Promise<EventRecord[]>;
 }
 
 interface AuthApi {
@@ -70,72 +156,141 @@ interface AuthApi {
 }
 
 contextBridge.exposeInMainWorld('api', {
-  query: (sql: string, params?: unknown[]) => ipcRenderer.invoke('query', sql, params),
-  getOne: (sql: string, params?: unknown[]) => ipcRenderer.invoke('get-one', sql, params),
-  runSql: (sql: string, params?: unknown[]) => ipcRenderer.invoke('run-sql', sql, params),
-  insert: (table: string, row: Record<string, unknown>) => ipcRenderer.invoke('insert', table, row),
-  update: (table: string, id: number, row: Record<string, unknown>) => ipcRenderer.invoke('update', table, id, row),
-  softDelete: (table: string, id: number) => ipcRenderer.invoke('soft-delete', table, id),
   getDbPath: () => ipcRenderer.invoke('get-db-path'),
-  getMigrations: () => ipcRenderer.invoke('get-migrations'),
-  addMigration: (name: string) => ipcRenderer.invoke('add-migration', name),
-  logEvent: (eventType: string, details: string, stationId?: number) => ipcRenderer.invoke('log-event', eventType, details, stationId),
-  getEvents: (limit?: number, offset?: number) => ipcRenderer.invoke('get-events', limit, offset),
 
   // Service methods
-  getAllServices: (limit?: number, offset?: number, includeDeleted?: boolean) => ipcRenderer.invoke('services:getAll', limit, offset, includeDeleted),
-  getServiceById: (id: number) => ipcRenderer.invoke('services:getById', id),
-  createService: (name: string, description: string, price: number) => ipcRenderer.invoke('services:create', name, description, price),
-  updateService: (id: number, name: string, description: string, price: number) => ipcRenderer.invoke('services:update', id, name, description, price),
-  softDeleteService: (id: number) => ipcRenderer.invoke('services:delete', id),
-  getActiveServices: () => ipcRenderer.invoke('services:getActive'),
+  getAllServices: (sessionId: string, limit = 100, offset = 0, includeDeleted = false) =>
+    ipcRenderer.invoke('services:getAll', sessionId, limit, offset, includeDeleted),
+  getServiceById: (sessionId: string, id: number) =>
+    ipcRenderer.invoke('services:getById', sessionId, id),
+  createService: (sessionId: string, name: string, description: string, price: number) =>
+    ipcRenderer.invoke('services:create', sessionId, name, description, price),
+  updateService: (sessionId: string, id: number, name: string, description: string, price: number) =>
+    ipcRenderer.invoke('services:update', sessionId, id, name, description, price),
+  softDeleteService: (sessionId: string, id: number) =>
+    ipcRenderer.invoke('services:delete', sessionId, id),
+  getActiveServices: (sessionId: string) =>
+    ipcRenderer.invoke('services:getActive', sessionId),
 
   // Product methods
-  getAllProducts: (limit?: number, offset?: number, includeDeleted?: boolean) => ipcRenderer.invoke('products:getAll', limit, offset, includeDeleted),
-  getLowStockProducts: (threshold?: number) => ipcRenderer.invoke('products:getLowStock', threshold),
-  getProductById: (id: number) => ipcRenderer.invoke('products:getById', id),
-  createProduct: (name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) => ipcRenderer.invoke('products:create', name, price, costPrice, quantity, lowStockThreshold),
-  updateProduct: (id: number, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) => ipcRenderer.invoke('products:update', id, name, price, costPrice, quantity, lowStockThreshold),
-  softDeleteProduct: (id: number) => ipcRenderer.invoke('products:delete', id),
-  updateProductStock: (productId: number, newQuantity: number) => ipcRenderer.invoke('products:updateStock', productId, newQuantity),
-  getLowStockCount: () => ipcRenderer.invoke('products:getLowStockCount'),
-  getActiveProducts: () => ipcRenderer.invoke('products:getActive'),
+  getAllProducts: (sessionId: string, limit = 100, offset = 0, includeDeleted = false) =>
+    ipcRenderer.invoke('products:getAll', sessionId, limit, offset, includeDeleted),
+  getLowStockProducts: (sessionId: string, threshold = 5) =>
+    ipcRenderer.invoke('products:getLowStock', sessionId, threshold),
+  getProductById: (sessionId: string, id: number) =>
+    ipcRenderer.invoke('products:getById', sessionId, id),
+  createProduct: (sessionId: string, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) =>
+    ipcRenderer.invoke('products:create', sessionId, name, price, costPrice, quantity, lowStockThreshold),
+  updateProduct: (sessionId: string, id: number, name: string, price: number, costPrice: number, quantity: number, lowStockThreshold: number) =>
+    ipcRenderer.invoke('products:update', sessionId, id, name, price, costPrice, quantity, lowStockThreshold),
+  softDeleteProduct: (sessionId: string, id: number) =>
+    ipcRenderer.invoke('products:delete', sessionId, id),
+  updateProductStock: (sessionId: string, productId: number, newQuantity: number) =>
+    ipcRenderer.invoke('products:updateStock', sessionId, productId, newQuantity),
+  getLowStockCount: (sessionId: string) =>
+    ipcRenderer.invoke('products:getLowStockCount', sessionId),
+  getActiveProducts: (sessionId: string) =>
+    ipcRenderer.invoke('products:getActive', sessionId),
 
   // Expense Category methods
-  getAllExpenseCategories: (limit?: number, offset?: number, includeDeleted?: boolean) => ipcRenderer.invoke('expenseCategories:getAll', limit, offset, includeDeleted),
-  getExpenseCategoryById: (id: number) => ipcRenderer.invoke('expenseCategories:getById', id),
-  createExpenseCategory: (name: string) => ipcRenderer.invoke('expenseCategories:create', name),
-  updateExpenseCategory: (id: number, name: string) => ipcRenderer.invoke('expenseCategories:update', id, name),
-  softDeleteExpenseCategory: (id: number) => ipcRenderer.invoke('expenseCategories:delete', id),
-  getActiveExpenseCategories: () => ipcRenderer.invoke('expenseCategories:getActive'),
+  getAllExpenseCategories: (sessionId: string, limit = 100, offset = 0, includeDeleted = false) =>
+    ipcRenderer.invoke('expenseCategories:getAll', sessionId, limit, offset, includeDeleted),
+  getExpenseCategoryById: (sessionId: string, id: number) =>
+    ipcRenderer.invoke('expenseCategories:getById', sessionId, id),
+  createExpenseCategory: (sessionId: string, name: string) =>
+    ipcRenderer.invoke('expenseCategories:create', sessionId, name),
+  updateExpenseCategory: (sessionId: string, id: number, name: string) =>
+    ipcRenderer.invoke('expenseCategories:update', sessionId, id, name),
+  softDeleteExpenseCategory: (sessionId: string, id: number) =>
+    ipcRenderer.invoke('expenseCategories:delete', sessionId, id),
+  getActiveExpenseCategories: (sessionId: string) =>
+    ipcRenderer.invoke('expenseCategories:getActive', sessionId),
 
   // Expense methods
-  getAllExpenses: (limit?: number, offset?: number, includeDeleted?: boolean) => ipcRenderer.invoke('expenses:getAll', limit, offset, includeDeleted),
-  getExpenseById: (id: number) => ipcRenderer.invoke('expenses:getById', id),
-  createExpense: (category: string, amount: number, description: string) => ipcRenderer.invoke('expenses:create', category, amount, description),
-  updateExpense: (id: number, category: string, amount: number, description: string) => ipcRenderer.invoke('expenses:update', id, category, amount, description),
-  softDeleteExpense: (id: number) => ipcRenderer.invoke('expenses:delete', id),
-  getExpenseCategories: () => ipcRenderer.invoke('expenses:getCategories'),
+  getAllExpenses: (sessionId: string, limit = 100, offset = 0, includeDeleted = false) =>
+    ipcRenderer.invoke('expenses:getAll', sessionId, limit, offset, includeDeleted),
+  getExpenseById: (sessionId: string, id: number) =>
+    ipcRenderer.invoke('expenses:getById', sessionId, id),
+  createExpense: (sessionId: string, category: string, amount: number, description: string) =>
+    ipcRenderer.invoke('expenses:create', sessionId, category, amount, description),
+  updateExpense: (sessionId: string, id: number, category: string, amount: number, description: string) =>
+    ipcRenderer.invoke('expenses:update', sessionId, id, category, amount, description),
+  softDeleteExpense: (sessionId: string, id: number) =>
+    ipcRenderer.invoke('expenses:delete', sessionId, id),
+  getExpenseCategories: (sessionId: string) =>
+    ipcRenderer.invoke('expenses:getCategories', sessionId),
 
   // Audit Log methods
-  getAuditLog: (limit?: number, offset?: number, entityType?: string, entityId?: number) => ipcRenderer.invoke('auditLog:getAll', limit, offset, entityType, entityId),
-  getAuditLogByEntity: (entityType: string, entityId: number) => ipcRenderer.invoke('auditLog:getByEntity', entityType, entityId),
-  getAuditLogCount: (entityType?: string, entityId?: number) => ipcRenderer.invoke('auditLog:getCount', entityType, entityId),
+  getAuditLog: (sessionId: string, limit = 100, offset = 0, entityType?: string, entityId?: number) =>
+    ipcRenderer.invoke('auditLog:getAll', sessionId, limit, offset, entityType, entityId),
+  getAuditLogByEntity: (sessionId: string, entityType: string, entityId: number) =>
+    ipcRenderer.invoke('auditLog:getByEntity', sessionId, entityType, entityId),
+  getAuditLogCount: (sessionId: string, entityType?: string, entityId?: number) =>
+    ipcRenderer.invoke('auditLog:getCount', sessionId, entityType, entityId),
+
+  // Commission methods
+  getCommissionRate: (sessionId: string, barberId: number) =>
+    ipcRenderer.invoke('commission:getRate', sessionId, barberId),
+  getCommissionDues: (sessionId: string, barberId: number, startDate: string, endDate: string) =>
+    ipcRenderer.invoke('commission:getDues', sessionId, barberId, startDate, endDate),
+  setCommissionRate: (sessionId: string, barberId: number, rate: number) =>
+    ipcRenderer.invoke('commission:setRate', sessionId, barberId, rate),
+
+  // Sales methods
+  getSaleById: (sessionId: string, id: number) =>
+    ipcRenderer.invoke('sales:getById', sessionId, id),
+  getAllSales: (sessionId: string, limit = 100, offset = 0) =>
+    ipcRenderer.invoke('sales:getAll', sessionId, limit, offset),
+  getSalesForBarber: (sessionId: string, barberId: number, date: string) =>
+    ipcRenderer.invoke('sales:getForBarber', sessionId, barberId, date),
+  createSale: (sessionId: string, barberId: number, stationId: number, totalAmount: number, cashAmount: number, createdBy: number, lines: Array<{ type: 'service' | 'product'; itemId: number; name: string; price: number; costPrice?: number; quantity: number }>) =>
+    ipcRenderer.invoke('sales:create', sessionId, barberId, stationId, totalAmount, cashAmount, createdBy, lines),
+  correctSale: (sessionId: string, saleId: number) =>
+    ipcRenderer.invoke('sales:correct', sessionId, saleId),
+
+  // System event log
+  logEvent: (sessionId: string, eventType: string, details: string, stationId?: number) =>
+    ipcRenderer.invoke('log-event', sessionId, eventType, details, stationId),
+  getEvents: (sessionId: string, limit?: number, offset?: number) =>
+    ipcRenderer.invoke('get-events', sessionId, limit, offset),
 } as DbApi);
 
 contextBridge.exposeInMainWorld('auth', {
-  login: (username: string, password: string, stationId: number) => ipcRenderer.invoke('auth:login', username, password, stationId),
-  loginPin: (pin: string, stationId: number) => ipcRenderer.invoke('auth:loginPin', pin, stationId),
-  logout: (sessionId: string) => ipcRenderer.invoke('auth:logout', sessionId),
-  verifySession: (sessionId: string) => ipcRenderer.invoke('auth:verifySession', sessionId),
-  getCurrentUser: (sessionId: string) => ipcRenderer.invoke('auth:getCurrentUser', sessionId),
-  changePassword: (sessionId: string, oldPassword: string, newPassword: string) => ipcRenderer.invoke('auth:changePassword', sessionId, oldPassword, newPassword),
-  setPin: (sessionId: string, pin: string) => ipcRenderer.invoke('auth:setPin', sessionId, pin),
-  createUser: (sessionId: string, username: string, role: 'owner' | 'manager' | 'barber', password?: string, pin?: string) => ipcRenderer.invoke('auth:createUser', sessionId, username, role, password, pin),
-  deactivateUser: (sessionId: string, userId: number) => ipcRenderer.invoke('auth:deactivateUser', sessionId, userId),
-  listUsers: (sessionId: string) => ipcRenderer.invoke('auth:listUsers', sessionId),
-  checkOwnerExists: () => ipcRenderer.invoke('auth:checkOwnerExists'),
-  firstRunSetup: (username: string, password: string) => ipcRenderer.invoke('auth:firstRunSetup', username, password),
+  login: (username: string, password: string, stationId: number) =>
+    ipcRenderer.invoke('auth:login', username, password, stationId),
+  loginPin: (pin: string, stationId: number) =>
+    ipcRenderer.invoke('auth:loginPin', pin, stationId),
+  logout: (sessionId: string) =>
+    ipcRenderer.invoke('auth:logout', sessionId),
+  verifySession: (sessionId: string) =>
+    ipcRenderer.invoke('auth:verifySession', sessionId),
+  getCurrentUser: (sessionId: string) =>
+    ipcRenderer.invoke('auth:getCurrentUser', sessionId),
+  changePassword: (sessionId: string, oldPassword: string, newPassword: string) =>
+    ipcRenderer.invoke('auth:changePassword', sessionId, oldPassword, newPassword),
+  setPin: (sessionId: string, pin: string) =>
+    ipcRenderer.invoke('auth:setPin', sessionId, pin),
+  createUser: (sessionId: string, username: string, role: UserRole, password?: string, pin?: string) =>
+    ipcRenderer.invoke('auth:createUser', sessionId, username, role, password, pin),
+  deactivateUser: (sessionId: string, userId: number) =>
+    ipcRenderer.invoke('auth:deactivateUser', sessionId, userId),
+  listUsers: (sessionId: string) =>
+    ipcRenderer.invoke('auth:listUsers', sessionId),
+  checkOwnerExists: () =>
+    ipcRenderer.invoke('auth:checkOwnerExists'),
+  firstRunSetup: (username: string, password: string) =>
+    ipcRenderer.invoke('auth:firstRunSetup', username, password),
 } as AuthApi);
 
-export type { DbApi, AuthApi };
+export type {
+  DbApi,
+  AuthApi,
+  ServiceRecord,
+  ProductRecord,
+  CategoryRecord,
+  ExpenseRecord,
+  AuditEntry,
+  EventRecord,
+  CommissionRateRecord,
+  SaleRecord,
+};

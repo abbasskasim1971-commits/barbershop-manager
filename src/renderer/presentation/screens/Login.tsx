@@ -131,12 +131,6 @@ const Login: React.FC = () => {
             </button>
           </form>
         )}
-
-        <div className="login-footer">
-          <p>
-            {t("defaultCredentials")}: {t("username")}: owner, {t("password")}: owner123
-          </p>
-        </div>
       </div>
     </div>
   );

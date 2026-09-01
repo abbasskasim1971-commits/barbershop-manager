@@ -21,22 +21,15 @@ export interface SystemEventRecord {
   timestamp: string;
 }
 
-export async function getEvents(limit = 100, offset = 0): Promise<unknown[][]> {
-  return query("SELECT * FROM system_events ORDER BY timestamp DESC LIMIT ? OFFSET ?", [
-    limit,
-    offset,
-  ]);
+export async function getEvents(limit = 100, offset = 0) {
+  const sessionId = AuthService.getSessionId() || "";
+  return window.api.getEvents(sessionId, limit, offset);
 }
 
-export async function getEventsByStation(
-  stationId: number,
-  limit = 50,
-  offset = 0,
-): Promise<unknown[][]> {
-  return query(
-    "SELECT * FROM system_events WHERE station_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-    [stationId, limit, offset],
-  );
+export async function getEventsByStation(stationId: number, limit = 50, offset = 0) {
+  const sessionId = AuthService.getSessionId() || "";
+  const events = await window.api.getEvents(sessionId, limit, offset);
+  return events.filter((e) => e.stationId === stationId);
 }
 
 export { logEvent };
