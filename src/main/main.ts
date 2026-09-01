@@ -303,7 +303,7 @@ function runMigrations(): void {
       db.run('ALTER TABLE products ADD COLUMN cost_price INTEGER NOT NULL DEFAULT 0');
     } catch {}
 
-    db.run('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)', ['002_phase3_schema', getBaghdadNow()] as BindParams);
+    db.run('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)', ['002_phase3_schema', getUtcNow()] as BindParams);
   }
 }
 
