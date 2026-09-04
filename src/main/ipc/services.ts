@@ -28,7 +28,7 @@ export function registerServiceHandlers(): void {
   });
 
   ipcMain.handle('services:getActive', async (_event, sessionId: string) => {
-    const session = requireAuth(sessionId, ['owner', 'manager']);
+    const session = requireAuth(sessionId, ['owner', 'manager', 'barber']);
     if (!session) return [];
     return mapServices(runQuery('SELECT * FROM services WHERE is_deleted = 0 ORDER BY name'));
   });

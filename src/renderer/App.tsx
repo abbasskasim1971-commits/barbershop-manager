@@ -14,6 +14,7 @@ import FirstRunSetup from "./presentation/screens/FirstRunSetup";
 import Services from "./presentation/screens/Services";
 import Products from "./presentation/screens/Products";
 import ExpenseCategories from "./presentation/screens/ExpenseCategories";
+import BarberPos from "./presentation/screens/BarberPos";
 
 type Screen =
   | "dashboard"
@@ -98,6 +99,10 @@ function AppContent() {
 
   if (!isAuthenticated()) {
     return <Login />;
+  }
+
+  if (user?.role === "barber") {
+    return <BarberPos />;
   }
 
   const CurrentScreen = screenComponents[currentScreen];

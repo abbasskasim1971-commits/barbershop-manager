@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -47,9 +47,11 @@ const Pos: React.FC = () => {
   const [barbers, setBarbers] = useState<PosBarber[]>([]);
   const [saleLines, setSaleLines] = useState<PosLine[]>([]);
   const [selectedBarber, setSelectedBarber] = useState<number>(0);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [showCorrection, setShowCorrection] = useState(false);
+const [error, setError] = useState("");
+const [success, setSuccess] = useState("");
+const [submitting, setSubmitting] = useState(false);
+const submittingRef = useRef(false);
+const [showCorrection, setShowCorrection] = useState(false);
   const [correctionSaleId, setCorrectionSaleId] = useState("");
 
   useEffect(() => {
@@ -128,6 +130,11 @@ const Pos: React.FC = () => {
       setError(t("addItemsBeforeCheckout"));
       return;
     }
+    if (submittingRef.current) {
+      return;
+    }
+    submittingRef.current = true;
+    setSubmitting(true);
     setError("");
     setSuccess("");
 
@@ -138,13 +145,18 @@ const Pos: React.FC = () => {
       quantity: l.quantity,
     }));
 
-    const result = await createSale(selectedBarber, 1, lines);
-    if (result.success) {
-      setSuccess(t("saleCompleted"));
-      setSaleLines([]);
-      setSelectedBarber(0);
-    } else {
-      setError(result.error || t("operationFailed"));
+    try {
+      const result = await createSale(selectedBarber, 1, lines);
+      if (result.success) {
+        setSuccess(t("saleCompleted"));
+        setSaleLines([]);
+        setSelectedBarber(0);
+      } else {
+        setError(result.error || t("operationFailed"));
+      }
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -346,7 +358,7 @@ const Pos: React.FC = () => {
           <button
             className="btn btn-primary btn-block"
             onClick={handleCheckout}
-            disabled={saleLines.length === 0}
+            disabled={saleLines.length === 0 || submitting}
           >
             {t("confirmSale")}
           </button>

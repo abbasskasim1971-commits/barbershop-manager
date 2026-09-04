@@ -71,8 +71,24 @@ export function registerSalesHandlers(): void {
   });
 
   ipcMain.handle('sales:create', async (_event, sessionId: string, barberId: number, stationId: number, lines: Array<{ type: 'service' | 'product'; itemId: number; name: string; quantity: number }>) => {
-    const session = requireAuth(sessionId, ['owner', 'manager']);
+    const session = requireAuth(sessionId, ['owner', 'manager', 'barber']);
     if (!session) return { success: false, error: 'Unauthorized' };
+
+    const isBarber = session.role === 'barber';
+
+    // Barber identity is server-authoritative: a barber may ONLY create sales on
+    // their own behalf. The session identity always wins over the client-passed barberId.
+    const effectiveBarberId = isBarber ? session.userId : barberId;
+    if (isBarber) {
+      if (lines.length === 0) {
+        return { success: false, error: 'A sale must have at least one line' };
+      }
+      for (const line of lines) {
+        if (line.type !== 'service') {
+          return { success: false, error: 'Barbers may only sell services' };
+        }
+      }
+    }
 
     const now = getUtcNow();
     try {
@@ -137,7 +153,7 @@ export function registerSalesHandlers(): void {
 
       const result = runSql(
         'INSERT INTO sales (barber_id, station_id, total_amount, cash_amount, is_deleted, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [barberId, stationId || 1, totalAmount, totalAmount, 0, now, session.userId] as BindParams
+        [effectiveBarberId, stationId || 1, totalAmount, totalAmount, 0, now, session.userId] as BindParams
       );
       const saleId = result.lastInsertRowid;
 

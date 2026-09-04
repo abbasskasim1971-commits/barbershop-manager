@@ -867,3 +867,165 @@ body {
   background: #007bff;
   color: #fff;
 }
+
+/* ===== Barber Touch Station (Phase 6) ===== */
+.barber-pos {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.barber-pos-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #003366;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.barber-pos-header h1 {
+  font-size: 24px;
+  margin: 0;
+}
+
+.barber-pos-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.barber-pos-user .btn-outline {
+  border-color: #fff;
+  color: #fff;
+  background: transparent;
+}
+
+.barber-pos-layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+  flex: 1;
+  overflow: hidden;
+  padding: 20px;
+}
+
+.barber-pos-catalog {
+  overflow-y: auto;
+}
+
+.barber-item-grid {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.barber-catalog-item {
+  min-height: 120px;
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+.barber-catalog-item .item-name {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.barber-catalog-item .item-price {
+  font-size: 20px;
+  margin-top: 8px;
+}
+
+.barber-pos-cart {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 16px;
+  background: #fff;
+  overflow-y: auto;
+}
+
+.barber-pos-cart h2 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.barber-cart-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.barber-cart-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.barber-cart-line-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.barber-cart-line-price {
+  font-size: 14px;
+  color: #007bff;
+  margin-top: 2px;
+}
+
+.barber-cart-line-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.barber-qty-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.barber-pos-totals {
+  margin-top: auto;
+}
+
+.barber-pos-grand-total {
+  font-size: 28px;
+  color: #007bff;
+  font-weight: 700;
+}
+
+.barber-checkout-btn {
+  font-size: 22px;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+@media (max-width: 1100px) {
+  .barber-pos-layout {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .barber-pos {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+}
