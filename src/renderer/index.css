@@ -1029,3 +1029,44 @@ body {
     overflow: visible;
   }
 }
+
+/* Commission management */
+.commission-section {
+  margin-top: 24px;
+}
+
+.commission-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.period-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.commission-range {
+  display: flex;
+  gap: 12px;
+}
+
+.rate-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rate-edit input {
+  width: 80px;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.commission-section .data-table tfoot td {
+  font-weight: 700;
+}
+

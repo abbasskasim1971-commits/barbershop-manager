@@ -12,7 +12,8 @@ type Screen =
   | "userManagement"
   | "services"
   | "products"
-  | "expenseCategories";
+  | "expenseCategories"
+  | "commissionManagement";
 
 interface NavigationProps {
   currentScreen: Screen;

@@ -235,7 +235,7 @@ export function registerSalesHandlers(): void {
   });
 
   ipcMain.handle('commission:getDues', async (_event, sessionId: string, barberId: number, startDate: string, endDate: string) => {
-    const session = requireAuth(sessionId, ['owner', 'manager']);
+    const session = requireAuth(sessionId, ['owner']);
     if (!session) return 0;
     const { start } = calendarDateToUtcRange(startDate);
     const { end } = calendarDateToUtcRange(endDate);

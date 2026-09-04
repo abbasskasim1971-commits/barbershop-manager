@@ -15,6 +15,7 @@ import Services from "./presentation/screens/Services";
 import Products from "./presentation/screens/Products";
 import ExpenseCategories from "./presentation/screens/ExpenseCategories";
 import BarberPos from "./presentation/screens/BarberPos";
+import CommissionManagement from "./presentation/screens/CommissionManagement";
 
 type Screen =
   | "dashboard"
@@ -26,7 +27,8 @@ type Screen =
   | "userManagement"
   | "services"
   | "products"
-  | "expenseCategories";
+  | "expenseCategories"
+  | "commissionManagement";
 
 const screenComponents: Record<Screen, React.FC> = {
   dashboard: Dashboard,
@@ -39,6 +41,7 @@ const screenComponents: Record<Screen, React.FC> = {
   services: Services,
   products: Products,
   expenseCategories: ExpenseCategories,
+  commissionManagement: CommissionManagement,
 };
 
 function AppContent() {
@@ -57,6 +60,7 @@ function AppContent() {
     canAccessExpenseCategories,
     canAccessExpenses,
     canAccessSettings,
+    canAccessCommissionManagement,
     checkOwnerExists,
   } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
@@ -125,6 +129,11 @@ function AppContent() {
       id: "userManagement",
       label: t("userManagement"),
       permission: () => canAccessUserManagement(),
+    },
+    {
+      id: "commissionManagement",
+      label: t("commissionManagement"),
+      permission: () => canAccessCommissionManagement(),
     },
   ];
 
