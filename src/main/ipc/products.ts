@@ -29,7 +29,7 @@ export function registerProductHandlers(): void {
   ipcMain.handle('products:getById', async (_event, sessionId: string, id: number) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return undefined;
-    const row = runOne("SELECT * FROM products WHERE id = ?", [id] as BindParams);
+    const row = runOne("SELECT * FROM products WHERE id = ? AND is_deleted = 0", [id] as BindParams);
     return row ? rowToProduct(row) : undefined;
   });
 

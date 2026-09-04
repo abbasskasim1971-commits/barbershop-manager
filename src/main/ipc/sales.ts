@@ -11,8 +11,8 @@ import {
   addAuditLog,
   logSystemEvent,
   mapSales,
-  mapAuditEntries,
   rowToCommissionRate,
+  calendarDateToUtcRange,
 } from '../database';
 import type { BindParams, SqlValue } from 'sql.js';
 
@@ -63,9 +63,10 @@ export function registerSalesHandlers(): void {
   ipcMain.handle('sales:getForBarber', async (_event, sessionId: string, barberId: number, date: string) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return [];
+    const { start, end } = calendarDateToUtcRange(date);
     return mapSales(runQuery(
-      "SELECT * FROM sales WHERE barber_id = ? AND date(created_at) = ? AND is_deleted = 0",
-      [barberId, date] as BindParams
+      "SELECT * FROM sales WHERE barber_id = ? AND created_at >= ? AND created_at < ? AND is_deleted = 0",
+      [barberId, start, end] as BindParams
     ));
   });
 
@@ -151,9 +152,10 @@ export function registerSalesHandlers(): void {
       logSystemEvent('sale_created', `Sale created: ${saleId} (total: ${totalAmount})`, stationId || 1);
 
       return { success: true, id: saleId, totalAmount };
-    } catch (error: any) {
+    } catch (error: unknown) {
       rollbackTransaction();
-      return { success: false, error: error.message || 'Sale creation failed' };
+      const message = error instanceof Error ? error.message : 'Sale creation failed';
+      return { success: false, error: message };
     }
   });
 
@@ -180,7 +182,10 @@ export function registerSalesHandlers(): void {
         const productId = line[0] as number;
         const quantity = line[1] as number;
         const productRow = runOne('SELECT quantity FROM products WHERE id = ?', [productId] as BindParams);
-        const currentStock = productRow ? (productRow[0] as number) : 0;
+        if (!productRow) {
+          throw new Error(`Product ${productId} not found during sale correction`);
+        }
+        const currentStock = productRow[0] as number;
         runSql(
           'UPDATE products SET quantity = ?, updated_at = ? WHERE id = ?',
           [currentStock + quantity, now, productId] as BindParams
@@ -196,9 +201,10 @@ export function registerSalesHandlers(): void {
       logSystemEvent('sale_corrected', `Sale corrected: ${saleId}`, stationId || 1);
 
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       rollbackTransaction();
-      return { success: false, error: error.message || 'Sale correction failed' };
+      const message = error instanceof Error ? error.message : 'Sale correction failed';
+      return { success: false, error: message };
     }
   });
 
@@ -234,7 +240,7 @@ export function registerSalesHandlers(): void {
     for (const row of rows) {
       const lineTotal = row[0] as number;
       const rate = (row[1] as number) || 0;
-      totalCommission += lineTotal * (rate / 100);
+      totalCommission += Math.round(lineTotal * rate / 100);
     }
     return totalCommission;
   });

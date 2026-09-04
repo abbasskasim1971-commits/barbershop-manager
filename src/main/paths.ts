@@ -9,11 +9,4 @@ const getDatabasePath = (): string => {
   return path.join(getUserDataPath(), 'barbershop.db');
 };
 
-const getBackupPath = (customPath?: string): string => {
-  if (customPath) {
-    return customPath;
-  }
-  return path.join(getUserDataPath(), 'backups');
-};
-
-export { getUserDataPath, getDatabasePath, getBackupPath };
+export { getUserDataPath, getDatabasePath };

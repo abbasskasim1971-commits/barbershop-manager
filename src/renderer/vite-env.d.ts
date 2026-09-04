@@ -87,23 +87,6 @@ interface SaleLine {
   quantity: number;
 }
 
-interface SaleLineDetail {
-  type: "service" | "product";
-  id: number;
-  itemId: number;
-  name: string;
-  price: number;
-  costPrice?: number;
-  quantity: number;
-  lineTotal: number;
-}
-
-interface UserRecord {
-  id: number;
-  username: string;
-  role: string;
-}
-
 interface DbApi {
   getDbPath: () => Promise<string>;
 
@@ -265,8 +248,7 @@ interface DbApi {
     lines: SaleLine[],
   ) => Promise<{ success: boolean; error?: string; id?: number; totalAmount?: number }>;
   correctSale: (sessionId: string, saleId: number) => Promise<{ success: boolean; error?: string }>;
-  getSaleLines: (sessionId: string, saleId: number) => Promise<SaleLineDetail[]>;
-  getActiveBarbers: (sessionId: string) => Promise<UserRecord[]>;
+  getSaleLines: (sessionId: string, saleId: number) => Promise<{ serviceLines: Array<{ id: number; itemId: number; name: string; price: number; quantity: number; lineTotal: number }>; productLines: Array<{ id: number; itemId: number; name: string; price: number; costPrice: number; quantity: number; lineTotal: number }> }>;
 
   logEvent: (
     sessionId: string,
@@ -329,6 +311,7 @@ interface AuthApi {
     username: string,
     password: string,
   ) => Promise<{ success: boolean; error?: string; userId?: number }>;
+  getActiveBarbers: (sessionId: string) => Promise<{ id: number; username: string }[]>;
 }
 
 declare global {

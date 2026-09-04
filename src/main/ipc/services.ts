@@ -23,7 +23,7 @@ export function registerServiceHandlers(): void {
   ipcMain.handle('services:getById', async (_event, sessionId: string, id: number) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return undefined;
-    const row = runOne("SELECT * FROM services WHERE id = ?", [id] as BindParams);
+    const row = runOne("SELECT * FROM services WHERE id = ? AND is_deleted = 0", [id] as BindParams);
     return row ? rowToService(row) : undefined;
   });
 

@@ -1,8 +1,24 @@
 import path from 'path';
 import * as fs from 'fs';
 import initSqlJs, { Database, SqlValue, BindParams, SqlJsStatic } from 'sql.js';
-import bcrypt from 'bcrypt';
 import { getDatabasePath } from './paths';
+
+// ── Canonical datetime policy ──────────────────────────────────────────
+// All timestamps are stored as UTC ISO-8601 strings (e.g. "2026-09-04T10:00:00.000Z").
+// getUtcNow() is the single source of truth for "now".
+// The business timezone is Asia/Baghdad (UTC+3).
+// Calendar-date filters must convert local dates to UTC ranges using calendarDateToUtcRange().
+// ────────────────────────────────────────────────────────────────────────
+
+export const BUSINESS_TZ_OFFSET_HOURS = 3;
+
+export function calendarDateToUtcRange(dateStr: string): { start: string; end: string } {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const baghdadMidnightUtcMs = Date.UTC(year, month - 1, day, 0, 0, 0) - BUSINESS_TZ_OFFSET_HOURS * 60 * 60 * 1000;
+  const start = new Date(baghdadMidnightUtcMs);
+  const end = new Date(baghdadMidnightUtcMs + 24 * 60 * 60 * 1000);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
 
 export type UserRole = 'owner' | 'manager' | 'barber';
 
@@ -86,21 +102,10 @@ export interface SaleRecord {
 
 let db: Database | null = null;
 let SQL: SqlJsStatic | null = null;
+let inTransaction = false;
 
 export function getDb(): Database | null {
   return db;
-}
-
-export function setDb(database: Database): void {
-  db = database;
-}
-
-export function getSql(): SqlJsStatic | null {
-  return SQL;
-}
-
-export function setSql(sql: SqlJsStatic): void {
-  SQL = sql;
 }
 
 export function getUtcNow(): string {
@@ -121,7 +126,7 @@ export function runOne(sqlStr: string, params: BindParams = []): SqlValue[] | un
 export function runSql(sqlStr: string, params: BindParams = []): { changes: number; lastInsertRowid: number } {
   if (!db) throw new Error('Database not initialized');
   db.run(sqlStr, params);
-  saveDatabase();
+  if (!inTransaction) saveDatabase();
   const lastIdResult = db.exec('SELECT last_insert_rowid()');
   const lastId = lastIdResult[0]?.values[0]?.[0] as number || 0;
   return { changes: db.getRowsModified(), lastInsertRowid: lastId };
@@ -129,18 +134,21 @@ export function runSql(sqlStr: string, params: BindParams = []): { changes: numb
 
 export function beginTransaction(): void {
   if (!db) throw new Error('Database not initialized');
+  inTransaction = true;
   db.exec('BEGIN IMMEDIATE TRANSACTION');
 }
 
 export function commitTransaction(): void {
   if (!db) throw new Error('Database not initialized');
   db.exec('COMMIT');
+  inTransaction = false;
   saveDatabase();
 }
 
 export function rollbackTransaction(): void {
   if (!db) throw new Error('Database not initialized');
   db.exec('ROLLBACK');
+  inTransaction = false;
 }
 
 export function addAuditLog(
@@ -157,7 +165,6 @@ export function addAuditLog(
     'INSERT INTO audit_log (entity_type, entity_id, field, old_value, new_value, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [entityType, entityId, field, oldValue, newValue, changedBy, now] as BindParams
   );
-  saveDatabase();
 }
 
 export function logSystemEvent(
@@ -171,7 +178,6 @@ export function logSystemEvent(
   );
   stmt.run([event_type, details, stationId || 1, getUtcNow()] as BindParams);
   stmt.free();
-  saveDatabase();
 }
 
 export function verifySession(sessionId: string): { userId: number; role: UserRole } | null {
@@ -320,6 +326,7 @@ export function mapSales(rows: SqlValue[][]): SaleRecord[] {
 }
 
 export function saveDatabase(): void {
+  if (inTransaction) return;
   if (db) {
     const data = db.export();
     const buffer = Buffer.from(data);

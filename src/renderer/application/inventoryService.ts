@@ -1,5 +1,4 @@
 import { AuthService } from "./authService";
-import { logEvent } from "../infrastructure/database/databaseService";
 
 const api = window.api;
 
@@ -36,16 +35,7 @@ export async function addProductStock(
     throw new Error("Quantity to add must be greater than zero");
   }
   const sessionId = AuthService.getSessionId() || "";
-  const result = await api.addProductStock(sessionId, productId, quantity);
-  if (result.success) {
-    await logEvent(
-      sessionId,
-      "inventory_added",
-      `Stock added for product ${productId}: +${quantity}`,
-      1,
-    );
-  }
-  return result;
+  return api.addProductStock(sessionId, productId, quantity);
 }
 
 export async function removeProductStock(
@@ -56,16 +46,7 @@ export async function removeProductStock(
     throw new Error("Quantity to remove must be greater than zero");
   }
   const sessionId = AuthService.getSessionId() || "";
-  const result = await api.removeProductStock(sessionId, productId, quantity);
-  if (result.success) {
-    await logEvent(
-      sessionId,
-      "inventory_removed",
-      `Stock removed for product ${productId}: -${quantity}`,
-      1,
-    );
-  }
-  return result;
+  return api.removeProductStock(sessionId, productId, quantity);
 }
 
 export async function getLowStockCount() {

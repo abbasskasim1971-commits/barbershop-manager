@@ -1,5 +1,4 @@
 import { AuthService } from "./authService";
-import { logEvent } from "../infrastructure/database/databaseService";
 
 const api = window.api;
 
@@ -67,8 +66,6 @@ export async function createProduct(
     lowStockThreshold,
   );
 
-  await logEvent(sessionId, "product_created", `Product created: ${name}`, 1);
-
   return result;
 }
 
@@ -107,8 +104,6 @@ export async function updateProduct(
     lowStockThreshold,
   );
 
-  await logEvent(sessionId, "product_updated", `Product updated: ${name}`, 1);
-
   return result;
 }
 
@@ -117,8 +112,6 @@ export async function softDeleteProduct(
 ): Promise<{ success: boolean; error?: string; changes?: number }> {
   const sessionId = AuthService.getSessionId() || "";
   const result = await api.softDeleteProduct(sessionId, id);
-
-  await logEvent(sessionId, "product_deleted", `Product deleted: ${id}`, 1);
 
   return result;
 }

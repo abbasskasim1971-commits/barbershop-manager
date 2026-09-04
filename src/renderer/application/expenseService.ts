@@ -1,5 +1,4 @@
 import { AuthService } from "./authService";
-import { logEvent } from "../infrastructure/database/databaseService";
 
 const api = window.api;
 
@@ -42,8 +41,6 @@ export async function createExpense(
   const sessionId = AuthService.getSessionId() || "";
   const result = await api.createExpense(sessionId, category, amount, description);
 
-  await logEvent(sessionId, "expense_created", `Expense created: ${category} (${amount} IQD)`, 1);
-
   return result;
 }
 
@@ -63,8 +60,6 @@ export async function updateExpense(
   const sessionId = AuthService.getSessionId() || "";
   const result = await api.updateExpense(sessionId, id, category, amount, description);
 
-  await logEvent(sessionId, "expense_updated", `Expense updated: ${category} (${amount} IQD)`, 1);
-
   return result;
 }
 
@@ -73,8 +68,6 @@ export async function softDeleteExpense(
 ): Promise<{ success: boolean; error?: string; changes?: number }> {
   const sessionId = AuthService.getSessionId() || "";
   const result = await api.softDeleteExpense(sessionId, id);
-
-  await logEvent(sessionId, "expense_deleted", `Expense deleted: ${id}`, 1);
 
   return result;
 }

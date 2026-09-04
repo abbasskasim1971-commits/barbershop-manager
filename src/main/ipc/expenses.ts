@@ -23,7 +23,7 @@ export function registerExpenseHandlers(): void {
   ipcMain.handle('expenseCategories:getById', async (_event, sessionId: string, id: number) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return undefined;
-    const row = runOne('SELECT * FROM expense_categories WHERE id = ?', [id] as BindParams);
+    const row = runOne('SELECT * FROM expense_categories WHERE id = ? AND is_deleted = 0', [id] as BindParams);
     return row ? rowToCategory(row) : undefined;
   });
 
@@ -97,7 +97,7 @@ export function registerExpenseHandlers(): void {
   ipcMain.handle('expenses:getById', async (_event, sessionId: string, id: number) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return undefined;
-    const row = runOne('SELECT * FROM expenses WHERE id = ?', [id] as BindParams);
+    const row = runOne('SELECT * FROM expenses WHERE id = ? AND is_deleted = 0', [id] as BindParams);
     return row ? { id: row[0] as number, category: row[1] as string, amount: row[2] as number, description: row[3] as string, isDeleted: row[4] === 1, createdAt: row[5] as string, updatedAt: row[6] as string } : undefined;
   });
 

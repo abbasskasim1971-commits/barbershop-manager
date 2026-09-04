@@ -1,5 +1,4 @@
 import { AuthService } from "./authService";
-import { logEvent } from "../infrastructure/database/databaseService";
 
 const api = window.api;
 
@@ -33,8 +32,6 @@ export async function createExpenseCategory(
   const sessionId = AuthService.getSessionId() || "";
   const result = await api.createExpenseCategory(sessionId, name);
 
-  await logEvent(sessionId, "category_created", `Category created: ${name}`, 1);
-
   return result;
 }
 
@@ -48,8 +45,6 @@ export async function updateExpenseCategory(
   const sessionId = AuthService.getSessionId() || "";
   const result = await api.updateExpenseCategory(sessionId, id, name);
 
-  await logEvent(sessionId, "category_updated", `Category updated: ${name}`, 1);
-
   return result;
 }
 
@@ -58,8 +53,6 @@ export async function softDeleteExpenseCategory(
 ): Promise<{ success: boolean; error?: string; changes?: number }> {
   const sessionId = AuthService.getSessionId() || "";
   const result = await api.softDeleteExpenseCategory(sessionId, id);
-
-  await logEvent(sessionId, "category_deleted", `Category deleted: ${id}`, 1);
 
   return result;
 }

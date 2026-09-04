@@ -87,7 +87,7 @@ function AppContent() {
   if (isLoading || checkingOwner) {
     return (
       <div className="app" dir={isRTL ? "rtl" : "ltr"}>
-        <div className="loading-screen">Loading...</div>
+        <div className="loading-screen">{t("loading")}</div>
       </div>
     );
   }

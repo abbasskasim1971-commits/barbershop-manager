@@ -1,5 +1,4 @@
 import { AuthService } from "./authService";
-import { logEvent } from "../infrastructure/database/databaseService";
 
 const api = window.api;
 
@@ -42,8 +41,6 @@ export async function createService(
   const sessionId = AuthService.getSessionId() || "";
   const result = await api.createService(sessionId, name, description, price);
 
-  await logEvent(sessionId, "service_created", `Service created: ${name} (${price} IQD)`, 1);
-
   return result;
 }
 
@@ -63,8 +60,6 @@ export async function updateService(
   const sessionId = AuthService.getSessionId() || "";
   const result = await api.updateService(sessionId, id, name, description, price);
 
-  await logEvent(sessionId, "service_updated", `Service updated: ${name} (${price} IQD)`, 1);
-
   return result;
 }
 
@@ -73,8 +68,6 @@ export async function softDeleteService(
 ): Promise<{ success: boolean; error?: string; changes?: number }> {
   const sessionId = AuthService.getSessionId() || "";
   const result = await api.softDeleteService(sessionId, id);
-
-  await logEvent(sessionId, "service_deleted", `Service deleted: ${id}`, 1);
 
   return result;
 }
