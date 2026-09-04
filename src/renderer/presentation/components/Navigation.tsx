@@ -2,9 +2,21 @@ import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { getLowStockCount } from "../../application/inventoryService";
 
+type Screen =
+  | "dashboard"
+  | "pos"
+  | "inventory"
+  | "expenses"
+  | "reports"
+  | "settings"
+  | "userManagement"
+  | "services"
+  | "products"
+  | "expenseCategories";
+
 interface NavigationProps {
-  currentScreen: string;
-  onScreenChange: (screen: string) => void;
+  currentScreen: Screen;
+  onScreenChange: (screen: Screen) => void;
   tabs: { id: string; label: string; permission: () => boolean }[];
   user: { id: number; username: string; role: string } | null;
   onLogout: () => void;
@@ -39,7 +51,7 @@ const Navigation: React.FC<NavigationProps> = ({
           <li key={tab.id}>
             <button
               className={`nav-tab ${currentScreen === tab.id ? "active" : ""}`}
-              onClick={() => onScreenChange(tab.id)}
+              onClick={() => onScreenChange(tab.id as Screen)}
             >
               {tab.label}
               {tab.id === "inventory" && lowStockCount > 0 && (

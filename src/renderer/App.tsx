@@ -130,7 +130,6 @@ function AppContent() {
       <Navigation
         currentScreen={currentScreen}
         onScreenChange={setCurrentScreen}
-        t={t}
         tabs={visibleTabs}
         user={user}
         onLogout={handleLogout}

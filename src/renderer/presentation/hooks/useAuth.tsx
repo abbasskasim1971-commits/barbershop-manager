@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { AuthService, User } from "../../application/authService";
+import { AuthService, User, ListUsersResult } from "../../application/authService";
 
 interface AuthContextType {
   user: User | null;
@@ -23,9 +23,7 @@ interface AuthContextType {
     pin?: string,
   ) => Promise<{ success: boolean; error?: string }>;
   deactivateUser: (userId: number) => Promise<{ success: boolean; error?: string }>;
-  listUsers: () => Promise<{
-    users: { id: number; username: string; role: string; isActive: number; createdAt: string }[];
-  }>;
+  listUsers: () => Promise<ListUsersResult>;
   checkOwnerExists: () => Promise<{ exists: boolean }>;
   firstRunSetup: (
     username: string,

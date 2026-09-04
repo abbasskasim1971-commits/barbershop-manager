@@ -19,11 +19,7 @@ const UserManagement: React.FC = () => {
 
   const loadUsers = async () => {
     const result = await listUsers();
-    if (result.success && result.users) {
-      setUsers(result.users);
-    } else {
-      setError(result.error || "Failed to load users");
-    }
+    setUsers(result.users);
   };
 
   useEffect(() => {

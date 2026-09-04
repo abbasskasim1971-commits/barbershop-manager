@@ -116,7 +116,7 @@ const Login: React.FC = () => {
                       }
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === "Backspace" && !e.target.value && i > 0) {
+                      if (e.key === "Backspace" && !(e.target as HTMLInputElement).value && i > 0) {
                         (document.getElementById(`pin-${i - 1}`) as HTMLInputElement)?.focus();
                       }
                     }}

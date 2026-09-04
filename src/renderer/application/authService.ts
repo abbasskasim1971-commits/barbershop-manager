@@ -12,7 +12,7 @@ import {
   authFirstRunSetup,
 } from "../infrastructure/database/databaseService";
 
-interface User {
+export interface User {
   id: number;
   username: string;
   role: "owner" | "manager" | "barber";
@@ -23,7 +23,10 @@ interface AuthResult {
   error?: string;
   user?: User;
   sessionId?: string;
-  users?: { id: number; username: string; role: string; isActive: number; createdAt: string }[];
+}
+
+export interface ListUsersResult {
+  users: { id: number; username: string; role: string; isActive: number; createdAt: string }[];
 }
 
 export class AuthService {
@@ -120,7 +123,11 @@ export class AuthService {
     const result = await authVerifySession(storedSessionId);
     if (result.valid && result.user) {
       this.sessionId = storedSessionId;
-      this.currentUser = result.user;
+      this.currentUser = {
+        id: result.user.id,
+        username: result.user.username,
+        role: result.user.role as "owner" | "manager" | "barber",
+      };
       return true;
     }
 
@@ -132,20 +139,50 @@ export class AuthService {
     const result = await authLogin(username, password, stationId);
     if (result.success && result.sessionId && result.user) {
       this.sessionId = result.sessionId;
-      this.currentUser = result.user;
+      this.currentUser = {
+        id: result.user.id,
+        username: result.user.username,
+        role: result.user.role as "owner" | "manager" | "barber",
+      };
       localStorage.setItem("sessionId", result.sessionId);
     }
-    return result;
+    return {
+      success: result.success,
+      error: result.error,
+      sessionId: result.sessionId,
+      user: result.user
+        ? {
+            id: result.user.id,
+            username: result.user.username,
+            role: result.user.role as "owner" | "manager" | "barber",
+          }
+        : undefined,
+    };
   }
 
   static async loginPin(pin: string, stationId = 1): Promise<AuthResult> {
     const result = await authLoginPin(pin, stationId);
     if (result.success && result.sessionId && result.user) {
       this.sessionId = result.sessionId;
-      this.currentUser = result.user;
+      this.currentUser = {
+        id: result.user.id,
+        username: result.user.username,
+        role: result.user.role as "owner" | "manager" | "barber",
+      };
       localStorage.setItem("sessionId", result.sessionId);
     }
-    return result;
+    return {
+      success: result.success,
+      error: result.error,
+      sessionId: result.sessionId,
+      user: result.user
+        ? {
+            id: result.user.id,
+            username: result.user.username,
+            role: result.user.role as "owner" | "manager" | "barber",
+          }
+        : undefined,
+    };
   }
 
   static async logout(): Promise<AuthResult> {
@@ -188,9 +225,9 @@ export class AuthService {
     return authDeactivateUser(sessionId, userId);
   }
 
-  static async listUsers(): Promise<AuthResult> {
+  static async listUsers(): Promise<ListUsersResult> {
     const sessionId = this.sessionId;
-    if (!sessionId) return { success: false, error: "No active session", users: [] };
+    if (!sessionId) return { users: [] };
     return authListUsers(sessionId);
   }
 
