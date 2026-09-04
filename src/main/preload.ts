@@ -130,14 +130,17 @@ interface DbApi {
   getCommissionDues: (sessionId: string, barberId: number, startDate: string, endDate: string) => Promise<number>;
   setCommissionRate: (sessionId: string, barberId: number, rate: number) => Promise<{ success: boolean; error?: string }>;
 
-  // Sales methods
-  getSaleById: (sessionId: string, id: number) => Promise<SaleRecord | undefined>;
-  getAllSales: (sessionId: string, limit?: number, offset?: number) => Promise<SaleRecord[]>;
-  getSalesForBarber: (sessionId: string, barberId: number, date: string) => Promise<SaleRecord[]>;
-  createSale: (sessionId: string, barberId: number, stationId: number, totalAmount: number, cashAmount: number, createdBy: number, lines: Array<{ type: 'service' | 'product'; itemId: number; name: string; price: number; costPrice?: number; quantity: number }>) => Promise<{ success: boolean; error?: string; id?: number }>;
-  correctSale: (sessionId: string, saleId: number) => Promise<{ success: boolean; error?: string }>;
+   // Sales methods
+   getSaleById: (sessionId: string, id: number) => Promise<SaleRecord | undefined>;
+   getAllSales: (sessionId: string, limit?: number, offset?: number) => Promise<SaleRecord[]>;
+   getSalesForBarber: (sessionId: string, barberId: number, date: string) => Promise<SaleRecord[]>;
+   getSaleLines: (sessionId: string, saleId: number) => Promise<{ serviceLines: Array<{ id: number; itemId: number; name: string; price: number; quantity: number; lineTotal: number }>; productLines: Array<{ id: number; itemId: number; name: string; price: number; costPrice: number; quantity: number; lineTotal: number }> }>;
+   createSale: (sessionId: string, barberId: number, stationId: number, lines: Array<{ type: 'service' | 'product'; itemId: number; name: string; quantity: number }>) =>
 
-  // System event log
+     Promise<{ success: boolean; error?: string; id?: number; totalAmount?: number }>;
+   correctSale: (sessionId: string, saleId: number) => Promise<{ success: boolean; error?: string }>;
+
+   // System event log
   logEvent: (sessionId: string, eventType: string, details: string, stationId?: number) => Promise<void>;
   getEvents: (sessionId: string, limit?: number, offset?: number) => Promise<EventRecord[]>;
 }
@@ -152,8 +155,9 @@ interface AuthApi {
   setPin: (sessionId: string, pin: string) => Promise<{ success: boolean; error?: string }>;
   createUser: (sessionId: string, username: string, role: UserRole, password?: string, pin?: string) => Promise<{ success: boolean; error?: string; userId?: number }>;
   deactivateUser: (sessionId: string, userId: number) => Promise<{ success: boolean; error?: string }>;
-  listUsers: (sessionId: string) => Promise<{ users: { id: number; username: string; role: string; isActive: number; createdAt: string }[] }>;
-  checkOwnerExists: () => Promise<{ exists: boolean }>;
+   listUsers: (sessionId: string) => Promise<{ users: { id: number; username: string; role: string; isActive: number; createdAt: string }[] }>;
+  getActiveBarbers: (sessionId: string) => Promise<{ id: number; username: string }[]>;
+   checkOwnerExists: () => Promise<{ exists: boolean }>;
   firstRunSetup: (username: string, password: string) => Promise<{ success: boolean; error?: string; userId?: number }>;
 }
 
@@ -247,12 +251,15 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('sales:getById', sessionId, id),
   getAllSales: (sessionId: string, limit = 100, offset = 0) =>
     ipcRenderer.invoke('sales:getAll', sessionId, limit, offset),
-  getSalesForBarber: (sessionId: string, barberId: number, date: string) =>
-    ipcRenderer.invoke('sales:getForBarber', sessionId, barberId, date),
-  createSale: (sessionId: string, barberId: number, stationId: number, totalAmount: number, cashAmount: number, createdBy: number, lines: Array<{ type: 'service' | 'product'; itemId: number; name: string; price: number; costPrice?: number; quantity: number }>) =>
-    ipcRenderer.invoke('sales:create', sessionId, barberId, stationId, totalAmount, cashAmount, createdBy, lines),
-  correctSale: (sessionId: string, saleId: number) =>
-    ipcRenderer.invoke('sales:correct', sessionId, saleId),
+   getSalesForBarber: (sessionId: string, barberId: number, date: string) =>
+     ipcRenderer.invoke('sales:getForBarber', sessionId, barberId, date),
+   getSaleLines: (sessionId: string, saleId: number) =>
+     ipcRenderer.invoke('sales:getLines', sessionId, saleId),
+   createSale: (sessionId: string, barberId: number, stationId: number, lines: Array<{ type: 'service' | 'product'; itemId: number; name: string; quantity: number }>) =>
+
+     ipcRenderer.invoke('sales:create', sessionId, barberId, stationId, lines),
+   correctSale: (sessionId: string, saleId: number) =>
+     ipcRenderer.invoke('sales:correct', sessionId, saleId),
 
   // System event log
   logEvent: (sessionId: string, eventType: string, details: string, stationId?: number) =>
@@ -280,9 +287,11 @@ contextBridge.exposeInMainWorld('auth', {
     ipcRenderer.invoke('auth:createUser', sessionId, username, role, password, pin),
   deactivateUser: (sessionId: string, userId: number) =>
     ipcRenderer.invoke('auth:deactivateUser', sessionId, userId),
-  listUsers: (sessionId: string) =>
-    ipcRenderer.invoke('auth:listUsers', sessionId),
-  checkOwnerExists: () =>
+   listUsers: (sessionId: string) =>
+     ipcRenderer.invoke('auth:listUsers', sessionId),
+   getActiveBarbers: (sessionId: string) =>
+     ipcRenderer.invoke('users:getActiveBarbers', sessionId),
+   checkOwnerExists: () =>
     ipcRenderer.invoke('auth:checkOwnerExists'),
   firstRunSetup: (username: string, password: string) =>
     ipcRenderer.invoke('auth:firstRunSetup', username, password),

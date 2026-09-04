@@ -699,3 +699,171 @@ body {
     font-size: 20px;
   }
 }
+
+/* POS Screen */
+.pos-layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+  min-height: 500px;
+}
+
+.pos-catalog {
+  overflow-y: auto;
+}
+
+.catalog-section {
+  margin-bottom: 24px;
+}
+
+.catalog-section h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.catalog-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  background: #fff;
+  transition: all 0.2s ease;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.catalog-item:hover:not(:disabled) {
+  border-color: #007bff;
+  background: #f8f9fa;
+}
+
+.catalog-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.item-price {
+  font-size: 12px;
+  color: #007bff;
+  font-weight: 600;
+}
+
+.item-stock {
+  font-size: 10px;
+  color: #6c757d;
+  margin-top: 2px;
+}
+
+.pos-sale {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sale-barber {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+}
+
+.sale-barber label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+}
+
+.sale-barber select {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+}
+
+.sale-lines-table {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.sale-lines-table tbody tr.service-line {
+  background: #e8f5e9;
+}
+
+.sale-lines-table tbody tr.product-line {
+  background: #e3f2fd;
+}
+
+.qty-input {
+  width: 60px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.sale-totals {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: auto;
+}
+
+.totals-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 14px;
+}
+
+.totals-row.totals-grand {
+  font-size: 16px;
+  font-weight: 700;
+  border-top: 2px solid #e0e0e0;
+  margin-top: 8px;
+  padding-top: 12px;
+}
+
+.totals-row.totals-grand span:last-child {
+  color: #007bff;
+}
+
+.btn-block {
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid #007bff;
+  color: #007bff;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: #007bff;
+  color: #fff;
+}

@@ -84,9 +84,24 @@ interface SaleLine {
   type: "service" | "product";
   itemId: number;
   name: string;
+  quantity: number;
+}
+
+interface SaleLineDetail {
+  type: "service" | "product";
+  id: number;
+  itemId: number;
+  name: string;
   price: number;
   costPrice?: number;
   quantity: number;
+  lineTotal: number;
+}
+
+interface UserRecord {
+  id: number;
+  username: string;
+  role: string;
 }
 
 interface DbApi {
@@ -247,12 +262,11 @@ interface DbApi {
     sessionId: string,
     barberId: number,
     stationId: number,
-    totalAmount: number,
-    cashAmount: number,
-    createdBy: number,
     lines: SaleLine[],
-  ) => Promise<{ success: boolean; error?: string; id?: number }>;
+  ) => Promise<{ success: boolean; error?: string; id?: number; totalAmount?: number }>;
   correctSale: (sessionId: string, saleId: number) => Promise<{ success: boolean; error?: string }>;
+  getSaleLines: (sessionId: string, saleId: number) => Promise<SaleLineDetail[]>;
+  getActiveBarbers: (sessionId: string) => Promise<UserRecord[]>;
 
   logEvent: (
     sessionId: string,

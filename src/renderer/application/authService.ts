@@ -76,7 +76,8 @@ export class AuthService {
   }
 
   static canAccessPos(): boolean {
-    return this.currentUser?.role !== undefined;
+    const role = this.currentUser?.role;
+    return role === "owner" || role === "manager";
   }
 
   static canAccessExpenses(): boolean {

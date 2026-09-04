@@ -332,10 +332,26 @@ function runSql(sql: string, params: BindParams = []): { changes: number; lastIn
   saveDatabase();
   const lastIdResult = db.exec('SELECT last_insert_rowid()');
   const lastId = lastIdResult[0]?.values[0]?.[0] as number || 0;
-  return { changes: db.getRowsModified(), lastInsertRowid: lastId };
-}
+   return { changes: db.getRowsModified(), lastInsertRowid: lastId };
+ }
 
-function verifySession(sessionId: string): { userId: number; role: UserRole } | null {
+ function beginTransaction(): void {
+   if (!db) throw new Error('Database not initialized');
+   db.exec('BEGIN IMMEDIATE TRANSACTION');
+ }
+
+ function commitTransaction(): void {
+   if (!db) throw new Error('Database not initialized');
+   db.exec('COMMIT');
+   saveDatabase();
+ }
+
+ function rollbackTransaction(): void {
+   if (!db) throw new Error('Database not initialized');
+   db.exec('ROLLBACK');
+ }
+
+ function verifySession(sessionId: string): { userId: number; role: UserRole } | null {
   if (!sessionId) return null;
   const session = runOne(
     'SELECT user_id FROM user_sessions WHERE session_id = ? AND expires_at > ?',
@@ -1363,17 +1379,44 @@ function setupIPC(): void {
       [barberId, rate, now, 0, now] as BindParams
     );
     return { success: true };
-  });
+   });
 
-  // Sales read handlers (owner or manager)
+    ipcMain.handle('users:getActiveBarbers', async (_event, sessionId: string) => {
+    const session = requireAuth(sessionId, ['owner', 'manager']);
+    if (!session) return [];
+    const rows = runQuery(
+      "SELECT id, username FROM users WHERE role = 'barber' AND is_active = 1 ORDER BY username",
+      [] as BindParams
+    );
+    return rows.map(r => ({ id: r[0] as number, username: r[1] as string }));
+   });
+
+   // Sales read handlers (owner or manager)
    ipcMain.handle('sales:getById', async (_event, sessionId: string, id: number) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return undefined;
     const row = runOne("SELECT * FROM sales WHERE id = ? AND is_deleted = 0", [id] as BindParams);
     return row ? rowToSale(row) : undefined;
-  });
+   });
 
-  ipcMain.handle('sales:getAll', async (_event, sessionId: string, limit = 100, offset = 0) => {
+   ipcMain.handle('sales:getLines', async (_event, sessionId: string, saleId: number) => {
+    const session = requireAuth(sessionId, ['owner', 'manager']);
+    if (!session) return { serviceLines: [], productLines: [] };
+    const serviceLines = runQuery(
+      'SELECT id, service_id, name, price, quantity, line_total FROM sale_service_lines WHERE sale_id = ?',
+      [saleId] as BindParams
+    );
+    const productLines = runQuery(
+      'SELECT id, product_id, name, price, cost_price, quantity, line_total FROM sale_product_lines WHERE sale_id = ?',
+      [saleId] as BindParams
+    );
+    return {
+      serviceLines: serviceLines.map(r => ({ id: r[0] as number, itemId: r[1] as number, name: r[2] as string, price: r[3] as number, quantity: r[4] as number, lineTotal: r[5] as number })),
+      productLines: productLines.map(r => ({ id: r[0] as number, itemId: r[1] as number, name: r[2] as string, price: r[3] as number, costPrice: r[4] as number, quantity: r[5] as number, lineTotal: r[6] as number }))
+    };
+   });
+
+   ipcMain.handle('sales:getAll', async (_event, sessionId: string, limit = 100, offset = 0) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return [];
     return mapSales(runQuery(
@@ -1392,55 +1435,138 @@ function setupIPC(): void {
   });
 
   // Sales write handlers (owner or manager)
-  ipcMain.handle('sales:create', async (_event, sessionId: string, barberId: number, stationId: number, totalAmount: number, cashAmount: number, createdBy: number, lines: Array<{ type: 'service' | 'product'; itemId: number; name: string; price: number; costPrice?: number; quantity: number }>) => {
+   ipcMain.handle('sales:create', async (_event, sessionId: string, barberId: number, stationId: number, lines: Array<{ type: 'service' | 'product'; itemId: number; name: string; quantity: number }>) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return { success: false, error: 'Unauthorized' };
 
     const now = getUtcNow();
-    const result = runSql(
-      'INSERT INTO sales (barber_id, station_id, total_amount, cash_amount, is_deleted, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [barberId, stationId, totalAmount, cashAmount, 0, now, createdBy] as BindParams
-    );
-    const saleId = result.lastInsertRowid;
+    try {
+      beginTransaction();
 
-    for (const line of lines) {
-      const lineTotal = line.price * line.quantity;
-      const tableName = line.type === 'service' ? 'sale_service_lines' : 'sale_product_lines';
-      const colName = line.type === 'service' ? 'service_id' : 'product_id';
-      if (line.type === 'product') {
-        runSql(
-          `INSERT INTO ${tableName} (sale_id, ${colName}, name, price, cost_price, quantity, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [saleId, line.itemId, line.name, line.price, line.costPrice || 0, line.quantity, lineTotal] as BindParams
-        );
-      } else {
-        runSql(
-          `INSERT INTO ${tableName} (sale_id, ${colName}, name, price, quantity, line_total) VALUES (?, ?, ?, ?, ?, ?)`,
-          [saleId, line.itemId, line.name, line.price, line.quantity, lineTotal] as BindParams
-        );
+      let totalAmount = 0;
+      const lineOps: Array<{ sql: string; params: SqlValue[] }> = [];
+
+      for (const line of lines) {
+        if (line.quantity <= 0) {
+          throw new Error(`Quantity must be greater than zero for: ${line.name}`);
+        }
+
+        if (line.type === 'service') {
+          const service = runOne(
+            'SELECT price FROM services WHERE id = ? AND is_deleted = 0',
+            [line.itemId] as BindParams
+          );
+          if (!service) {
+            throw new Error(`Service not found: ${line.name}`);
+          }
+          const price = service[0] as number;
+          const quantity = line.quantity;
+          const lineTotal = price * quantity;
+          totalAmount += lineTotal;
+          lineOps.push({
+            sql: 'INSERT INTO sale_service_lines (sale_id, service_id, name, price, quantity, line_total) VALUES (?, ?, ?, ?, ?, ?)',
+            params: [null, line.itemId, line.name, price, quantity, lineTotal],
+          });
+        } else {
+          const product = runOne(
+            'SELECT price, cost_price, quantity FROM products WHERE id = ? AND is_deleted = 0',
+            [line.itemId] as BindParams
+          );
+          if (!product) {
+            throw new Error(`Product not found: ${line.name}`);
+          }
+          const price = product[0] as number;
+          const costPrice = product[1] as number;
+          const currentStock = product[2] as number;
+          const qty = line.quantity;
+          if (currentStock < qty) {
+            throw new Error(`Insufficient stock for: ${line.name} (have ${currentStock}, need ${qty})`);
+          }
+          const lineTotal = price * qty;
+          totalAmount += lineTotal;
+
+          const newStock = currentStock - qty;
+          runSql(
+            'UPDATE products SET quantity = ?, updated_at = ? WHERE id = ?',
+            [newStock, now, line.itemId] as BindParams
+          );
+
+          addAuditLog('products', line.itemId, 'quantity', String(currentStock), String(newStock), `user:${session.userId}`);
+
+          lineOps.push({
+            sql: 'INSERT INTO sale_product_lines (sale_id, product_id, name, price, cost_price, quantity, line_total) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            params: [null, line.itemId, line.name, price, costPrice, qty, lineTotal],
+          });
+        }
       }
+
+      const result = runSql(
+        'INSERT INTO sales (barber_id, station_id, total_amount, cash_amount, is_deleted, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [barberId, stationId || 1, totalAmount, totalAmount, 0, now, session.userId] as BindParams
+      );
+      const saleId = result.lastInsertRowid;
+
+      for (const op of lineOps) {
+        const fixedParams = [saleId, ...op.params.slice(1)] as BindParams;
+        runSql(op.sql, fixedParams);
+      }
+
+      commitTransaction();
+
+      addAuditLog('sales', saleId, 'total_amount', '0', String(totalAmount), `user:${session.userId}`);
+      logSystemEvent('sale_created', `Sale created: ${saleId} (total: ${totalAmount})`, stationId || 1);
+
+      return { success: true, id: saleId, totalAmount };
+    } catch (error: any) {
+      rollbackTransaction();
+      return { success: false, error: error.message || 'Sale creation failed' };
     }
+   });
 
-    logSystemEvent('sale_created', `Sale created: ${saleId}`, stationId || 1);
-
-    return { success: true, id: saleId };
-  });
-
-  ipcMain.handle('sales:correct', async (_event, sessionId: string, saleId: number) => {
+   ipcMain.handle('sales:correct', async (_event, sessionId: string, saleId: number) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return { success: false, error: 'Unauthorized' };
 
     const sale = runOne("SELECT * FROM sales WHERE id = ?", [saleId] as BindParams);
     if (!sale || sale[5] === 1) {
-      return { success: false, error: 'Sale not found' };
+      return { success: false, error: 'Sale not found or already corrected' };
     }
 
-    runSql('UPDATE sales SET is_deleted = 1 WHERE id = ?', [saleId] as BindParams);
+    const now = getUtcNow();
+    const stationId = sale[2] as number;
+    try {
+      beginTransaction();
 
-    addAuditLog('sales', saleId, 'is_deleted', '0', '1', `user:${session.userId}`);
-    logSystemEvent('sale_corrected', `Sale corrected: ${saleId}`, 1);
+      const productLines = runQuery(
+        'SELECT product_id, quantity FROM sale_product_lines WHERE sale_id = ?',
+        [saleId] as BindParams
+      );
 
-    return { success: true };
-  });
+      for (const line of productLines) {
+        const productId = line[0] as number;
+        const quantity = line[1] as number;
+        const productRow = runOne('SELECT quantity FROM products WHERE id = ?', [productId] as BindParams);
+        const currentStock = productRow ? (productRow[0] as number) : 0;
+        runSql(
+          'UPDATE products SET quantity = ?, updated_at = ? WHERE id = ?',
+          [currentStock + quantity, now, productId] as BindParams
+        );
+        addAuditLog('products', productId, 'quantity', String(currentStock), String(currentStock + quantity), `user:${session.userId}`);
+      }
+
+      runSql('UPDATE sales SET is_deleted = 1 WHERE id = ?', [saleId] as BindParams);
+
+      commitTransaction();
+
+      addAuditLog('sales', saleId, 'is_deleted', '0', '1', `user:${session.userId}`);
+      logSystemEvent('sale_corrected', `Sale corrected: ${saleId}`, stationId || 1);
+
+      return { success: true };
+    } catch (error: any) {
+      rollbackTransaction();
+      return { success: false, error: error.message || 'Sale correction failed' };
+    }
+   });
 }
 
 app.whenReady().then(async () => {
