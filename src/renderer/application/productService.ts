@@ -23,16 +23,6 @@ export async function getAllProducts(
   return api.getAllProducts(sessionId, limit, offset, includeDeleted);
 }
 
-export async function getLowStockProducts(): Promise<Product[]> {
-  const sessionId = AuthService.getSessionId() || "";
-  return api.getLowStockProducts(sessionId);
-}
-
-export async function getProductById(id: number): Promise<Product | undefined> {
-  const sessionId = AuthService.getSessionId() || "";
-  return api.getProductById(sessionId, id);
-}
-
 export async function createProduct(
   name: string,
   price: number,
@@ -116,23 +106,7 @@ export async function softDeleteProduct(
   return result;
 }
 
-export async function updateProductStock(
-  productId: number,
-  newQuantity: number,
-): Promise<{ success: boolean; error?: string; changes?: number }> {
-  if (newQuantity < 0) {
-    throw new Error("Quantity cannot be negative");
-  }
-  const sessionId = AuthService.getSessionId() || "";
-  return api.updateProductStock(sessionId, productId, newQuantity);
-}
-
 export async function getLowStockCount(): Promise<number> {
   const sessionId = AuthService.getSessionId() || "";
   return api.getLowStockCount(sessionId);
-}
-
-export async function getActiveProducts(): Promise<Product[]> {
-  const sessionId = AuthService.getSessionId() || "";
-  return api.getActiveProducts(sessionId);
 }

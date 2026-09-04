@@ -221,12 +221,14 @@ export function registerSalesHandlers(): void {
   ipcMain.handle('commission:getDues', async (_event, sessionId: string, barberId: number, startDate: string, endDate: string) => {
     const session = requireAuth(sessionId, ['owner', 'manager']);
     if (!session) return 0;
+    const { start } = calendarDateToUtcRange(startDate);
+    const { end } = calendarDateToUtcRange(endDate);
     const rows = runQuery(
       `SELECT sl.line_total, cr.rate
        FROM sales s
        JOIN sale_service_lines sl ON s.id = sl.sale_id
        JOIN commission_rates cr ON cr.barber_id = s.barber_id
-       WHERE s.barber_id = ? AND s.created_at BETWEEN ? AND ? AND s.is_deleted = 0
+       WHERE s.barber_id = ? AND s.created_at >= ? AND s.created_at < ? AND s.is_deleted = 0
          AND cr.effective_from = (
            SELECT MAX(cr2.effective_from)
            FROM commission_rates cr2
@@ -234,7 +236,7 @@ export function registerSalesHandlers(): void {
              AND cr2.is_deleted = 0
              AND cr2.effective_from <= s.created_at
          )`,
-      [barberId, startDate, endDate] as BindParams
+      [barberId, start, end] as BindParams
     );
     let totalCommission = 0;
     for (const row of rows) {

@@ -142,7 +142,6 @@ const UserManagement: React.FC = () => {
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value as "owner" | "manager" | "barber")}
                 >
-                  <option value="owner">{t("owner")}</option>
                   <option value="manager">{t("manager")}</option>
                   <option value="barber">{t("barber")}</option>
                 </select>

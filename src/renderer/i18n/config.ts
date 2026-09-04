@@ -133,6 +133,11 @@ const resources = {
       thresholdPlaceholder: "أدخل حد التنبيه",
       lowStockAlert: "تنبيه المخزون",
       lowStockCount: "منتجات منخفضة المخزون",
+      addProduct: "إضافة منتج",
+      editProduct: "تعديل المنتج",
+      productCreated: "تم إنشاء المنتج بنجاح",
+      productUpdated: "تم تحديث المنتج بنجاح",
+      productDeleted: "تم حذف المنتج",
       // POS
       serviceTotal: "إجمالي الخدمات",
       productTotal: "إجمالي المنتجات",
@@ -168,6 +173,7 @@ const resources = {
       expenseUpdated: "تم تحديث المصروف بنجاح",
       expenseDeleted: "تم حذف المصروف",
       amount: "المبلغ",
+      category: "الفئة",
       amountPlaceholder: "أدخل المبلغ",
       confirmDelete: "هل أنت متأكد من الحذف؟",
       // Generic feedback
@@ -368,6 +374,12 @@ const resources = {
       thresholdPlaceholder: "سنووری کەمبوون بنووسە",
       lowStockAlert: "ئاگاداری هەژمار کەم",
       lowStockCount: "بەرهەمی هەژمار کەم",
+      addProduct: "زیادکردنی بەرهەم",
+      editProduct: "دەستکاریکردنی بەرهەم",
+      productCreated: "بەرهەم دروستکرا",
+      productUpdated: "بەرهەم نوێکرایەوە",
+      productDeleted: "بەرهەم سڕایەوە",
+      category: "فئه",
     },
   },
 };

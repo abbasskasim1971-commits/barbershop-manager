@@ -165,6 +165,7 @@ export function addAuditLog(
     'INSERT INTO audit_log (entity_type, entity_id, field, old_value, new_value, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [entityType, entityId, field, oldValue, newValue, changedBy, now] as BindParams
   );
+  if (!inTransaction) saveDatabase();
 }
 
 export function logSystemEvent(
@@ -178,6 +179,7 @@ export function logSystemEvent(
   );
   stmt.run([event_type, details, stationId || 1, getUtcNow()] as BindParams);
   stmt.free();
+  if (!inTransaction) saveDatabase();
 }
 
 export function verifySession(sessionId: string): { userId: number; role: UserRole } | null {
