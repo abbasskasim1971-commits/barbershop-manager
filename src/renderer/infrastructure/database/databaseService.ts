@@ -53,5 +53,3 @@ export async function authCheckOwnerExists() {
 export async function authFirstRunSetup(username: string, password: string) {
   return authApi.firstRunSetup(username, password);
 }
-
-

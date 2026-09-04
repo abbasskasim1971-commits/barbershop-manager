@@ -1,12 +1,12 @@
-import { app, BrowserWindow } from 'electron';
-import path from 'path';
-import { initializeDatabase, saveDatabase } from './database';
-import { registerAuthHandlers } from './ipc/auth';
-import { registerServiceHandlers } from './ipc/services';
-import { registerProductHandlers } from './ipc/products';
-import { registerExpenseHandlers } from './ipc/expenses';
-import { registerSalesHandlers } from './ipc/sales';
-import { registerAuditHandlers } from './ipc/audit';
+import { app, BrowserWindow } from "electron";
+import path from "path";
+import { initializeDatabase, saveDatabase } from "./database";
+import { registerAuthHandlers } from "./ipc/auth";
+import { registerServiceHandlers } from "./ipc/services";
+import { registerProductHandlers } from "./ipc/products";
+import { registerExpenseHandlers } from "./ipc/expenses";
+import { registerSalesHandlers } from "./ipc/sales";
+import { registerAuditHandlers } from "./ipc/audit";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -17,17 +17,17 @@ function createWindow(): void {
     minWidth: 1024,
     minHeight: 600,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
     },
-    title: 'Barbershop Management',
+    title: "Barbershop Management",
   });
 
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.loadURL('http://localhost:5173');
+  if (process.env.NODE_ENV === "development") {
+    mainWindow.loadURL("http://localhost:5173");
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
+    mainWindow.loadFile(path.join(__dirname, "../../dist/renderer/index.html"));
   }
 }
 
@@ -46,18 +46,18 @@ app.whenReady().then(async () => {
   createWindow();
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
     app.quit();
   }
 });
 
-app.on('activate', () => {
+app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
 
-app.on('before-quit', () => {
+app.on("before-quit", () => {
   saveDatabase();
 });

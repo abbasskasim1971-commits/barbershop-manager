@@ -53,7 +53,13 @@ const BarberPos: React.FC = () => {
       }
       return [
         ...prev,
-        { key: `svc-${service.id}`, serviceId: service.id, name: service.name, price: service.price, quantity: 1 },
+        {
+          key: `svc-${service.id}`,
+          serviceId: service.id,
+          name: service.name,
+          price: service.price,
+          quantity: 1,
+        },
       ];
     });
   };

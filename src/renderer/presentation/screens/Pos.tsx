@@ -47,11 +47,11 @@ const Pos: React.FC = () => {
   const [barbers, setBarbers] = useState<PosBarber[]>([]);
   const [saleLines, setSaleLines] = useState<PosLine[]>([]);
   const [selectedBarber, setSelectedBarber] = useState<number>(0);
-const [error, setError] = useState("");
-const [success, setSuccess] = useState("");
-const [submitting, setSubmitting] = useState(false);
-const submittingRef = useRef(false);
-const [showCorrection, setShowCorrection] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const [showCorrection, setShowCorrection] = useState(false);
   const [correctionSaleId, setCorrectionSaleId] = useState("");
 
   useEffect(() => {

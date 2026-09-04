@@ -248,7 +248,28 @@ interface DbApi {
     lines: SaleLine[],
   ) => Promise<{ success: boolean; error?: string; id?: number; totalAmount?: number }>;
   correctSale: (sessionId: string, saleId: number) => Promise<{ success: boolean; error?: string }>;
-  getSaleLines: (sessionId: string, saleId: number) => Promise<{ serviceLines: Array<{ id: number; itemId: number; name: string; price: number; quantity: number; lineTotal: number }>; productLines: Array<{ id: number; itemId: number; name: string; price: number; costPrice: number; quantity: number; lineTotal: number }> }>;
+  getSaleLines: (
+    sessionId: string,
+    saleId: number,
+  ) => Promise<{
+    serviceLines: Array<{
+      id: number;
+      itemId: number;
+      name: string;
+      price: number;
+      quantity: number;
+      lineTotal: number;
+    }>;
+    productLines: Array<{
+      id: number;
+      itemId: number;
+      name: string;
+      price: number;
+      costPrice: number;
+      quantity: number;
+      lineTotal: number;
+    }>;
+  }>;
 
   logEvent: (
     sessionId: string,

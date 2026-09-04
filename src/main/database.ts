@@ -1,7 +1,7 @@
-import path from 'path';
-import * as fs from 'fs';
-import initSqlJs, { Database, SqlValue, BindParams, SqlJsStatic } from 'sql.js';
-import { getDatabasePath } from './paths';
+import path from "path";
+import * as fs from "fs";
+import initSqlJs, { Database, SqlValue, BindParams, SqlJsStatic } from "sql.js";
+import { getDatabasePath } from "./paths";
 
 // ── Canonical datetime policy ──────────────────────────────────────────
 // All timestamps are stored as UTC ISO-8601 strings (e.g. "2026-09-04T10:00:00.000Z").
@@ -13,14 +13,15 @@ import { getDatabasePath } from './paths';
 export const BUSINESS_TZ_OFFSET_HOURS = 3;
 
 export function calendarDateToUtcRange(dateStr: string): { start: string; end: string } {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  const baghdadMidnightUtcMs = Date.UTC(year, month - 1, day, 0, 0, 0) - BUSINESS_TZ_OFFSET_HOURS * 60 * 60 * 1000;
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const baghdadMidnightUtcMs =
+    Date.UTC(year, month - 1, day, 0, 0, 0) - BUSINESS_TZ_OFFSET_HOURS * 60 * 60 * 1000;
   const start = new Date(baghdadMidnightUtcMs);
   const end = new Date(baghdadMidnightUtcMs + 24 * 60 * 60 * 1000);
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-export type UserRole = 'owner' | 'manager' | 'barber';
+export type UserRole = "owner" | "manager" | "barber";
 
 export interface ServiceRecord {
   id: number;
@@ -113,7 +114,7 @@ export function getUtcNow(): string {
 }
 
 export function runQuery(sqlStr: string, params: BindParams = []): SqlValue[][] {
-  if (!db) throw new Error('Database not initialized');
+  if (!db) throw new Error("Database not initialized");
   const result = db.exec(sqlStr, params);
   return result[0]?.values || [];
 }
@@ -123,31 +124,34 @@ export function runOne(sqlStr: string, params: BindParams = []): SqlValue[] | un
   return rows[0];
 }
 
-export function runSql(sqlStr: string, params: BindParams = []): { changes: number; lastInsertRowid: number } {
-  if (!db) throw new Error('Database not initialized');
+export function runSql(
+  sqlStr: string,
+  params: BindParams = [],
+): { changes: number; lastInsertRowid: number } {
+  if (!db) throw new Error("Database not initialized");
   db.run(sqlStr, params);
   if (!inTransaction) saveDatabase();
-  const lastIdResult = db.exec('SELECT last_insert_rowid()');
-  const lastId = lastIdResult[0]?.values[0]?.[0] as number || 0;
+  const lastIdResult = db.exec("SELECT last_insert_rowid()");
+  const lastId = (lastIdResult[0]?.values[0]?.[0] as number) || 0;
   return { changes: db.getRowsModified(), lastInsertRowid: lastId };
 }
 
 export function beginTransaction(): void {
-  if (!db) throw new Error('Database not initialized');
+  if (!db) throw new Error("Database not initialized");
   inTransaction = true;
-  db.exec('BEGIN IMMEDIATE TRANSACTION');
+  db.exec("BEGIN IMMEDIATE TRANSACTION");
 }
 
 export function commitTransaction(): void {
-  if (!db) throw new Error('Database not initialized');
-  db.exec('COMMIT');
+  if (!db) throw new Error("Database not initialized");
+  db.exec("COMMIT");
   inTransaction = false;
   saveDatabase();
 }
 
 export function rollbackTransaction(): void {
-  if (!db) throw new Error('Database not initialized');
-  db.exec('ROLLBACK');
+  if (!db) throw new Error("Database not initialized");
+  db.exec("ROLLBACK");
   inTransaction = false;
 }
 
@@ -162,20 +166,16 @@ export function addAuditLog(
   if (!db) return;
   const now = getUtcNow();
   db.run(
-    'INSERT INTO audit_log (entity_type, entity_id, field, old_value, new_value, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [entityType, entityId, field, oldValue, newValue, changedBy, now] as BindParams
+    "INSERT INTO audit_log (entity_type, entity_id, field, old_value, new_value, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    [entityType, entityId, field, oldValue, newValue, changedBy, now] as BindParams,
   );
   if (!inTransaction) saveDatabase();
 }
 
-export function logSystemEvent(
-  event_type: string,
-  details: string,
-  stationId: number,
-): void {
+export function logSystemEvent(event_type: string, details: string, stationId: number): void {
   if (!db) return;
   const stmt = db.prepare(
-    'INSERT INTO system_events (event_type, details, station_id, timestamp) VALUES (?, ?, ?, ?)'
+    "INSERT INTO system_events (event_type, details, station_id, timestamp) VALUES (?, ?, ?, ?)",
   );
   stmt.run([event_type, details, stationId || 1, getUtcNow()] as BindParams);
   stmt.free();
@@ -185,12 +185,14 @@ export function logSystemEvent(
 export function verifySession(sessionId: string): { userId: number; role: UserRole } | null {
   if (!sessionId) return null;
   const session = runOne(
-    'SELECT user_id FROM user_sessions WHERE session_id = ? AND expires_at > ?',
-    [sessionId, getUtcNow()] as BindParams
+    "SELECT user_id FROM user_sessions WHERE session_id = ? AND expires_at > ?",
+    [sessionId, getUtcNow()] as BindParams,
   );
   if (!session) return null;
   const userId = session[0] as number;
-  const user = runOne('SELECT id, role FROM users WHERE id = ? AND is_active = 1', [userId] as BindParams);
+  const user = runOne("SELECT id, role FROM users WHERE id = ? AND is_active = 1", [
+    userId,
+  ] as BindParams);
   if (!user) return null;
   return { userId, role: user[1] as UserRole };
 }
@@ -337,7 +339,7 @@ export function saveDatabase(): void {
 }
 
 export async function initializeDatabase(): Promise<void> {
-  const sqlModule = await initSqlJs({ locateFile: () => path.join(__dirname, 'sql-wasm.wasm') });
+  const sqlModule = await initSqlJs({ locateFile: () => path.join(__dirname, "sql-wasm.wasm") });
   SQL = sqlModule as SqlJsStatic;
   const dbPath = getDatabasePath();
 
@@ -362,10 +364,10 @@ export function runMigrations(): void {
     )
   `);
 
-  const appliedResult = db.exec('SELECT name FROM _migrations');
+  const appliedResult = db.exec("SELECT name FROM _migrations");
   const applied = new Set(appliedResult[0]?.values.map((v: SqlValue[]) => v[0]) || []);
 
-  if (!applied.has('001_initial')) {
+  if (!applied.has("001_initial")) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -500,22 +502,32 @@ export function runMigrations(): void {
         ('Maintenance', 0, ?),
         ('Marketing', 0, ?),
         ('Miscellaneous', 0, ?)`,
-      [now, now, now, now, now, now, now] as BindParams
+      [now, now, now, now, now, now, now] as BindParams,
     );
-    
-    db.run('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)', ['001_initial', now] as BindParams);
+
+    db.run("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)", [
+      "001_initial",
+      now,
+    ] as BindParams);
   }
 
-  if (!applied.has('002_phase3_schema')) {
+  if (!applied.has("002_phase3_schema")) {
     try {
-      db.run('ALTER TABLE services ADD COLUMN description TEXT');
-    } catch {}
+      db.run("ALTER TABLE services ADD COLUMN description TEXT");
+    } catch {
+      // Column may already exist; ignore
+    }
 
     try {
-      db.run('ALTER TABLE products ADD COLUMN cost_price INTEGER NOT NULL DEFAULT 0');
-    } catch {}
+      db.run("ALTER TABLE products ADD COLUMN cost_price INTEGER NOT NULL DEFAULT 0");
+    } catch {
+      // Column may already exist; ignore
+    }
 
-    db.run('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)', ['002_phase3_schema', getUtcNow()] as BindParams);
+    db.run("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)", [
+      "002_phase3_schema",
+      getUtcNow(),
+    ] as BindParams);
   }
 }
 

@@ -114,7 +114,8 @@ const CommissionManagement: React.FC = () => {
       return;
     }
     try {
-      const targets = selectedBarber === 0 ? barbers : barbers.filter((b) => b.id === selectedBarber);
+      const targets =
+        selectedBarber === 0 ? barbers : barbers.filter((b) => b.id === selectedBarber);
       const updated = await Promise.all(
         targets.map(async (b) => {
           const dues = await getCommissionDues(b.id, start, end);
@@ -231,21 +232,12 @@ const CommissionManagement: React.FC = () => {
               </div>
               <div className="form-group">
                 <label>{t("endDate")}</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
             </div>
           )}
 
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={runDues}
-            disabled={isLoading}
-          >
+          <button type="button" className="btn btn-primary" onClick={runDues} disabled={isLoading}>
             {t("calculate")}
           </button>
         </div>

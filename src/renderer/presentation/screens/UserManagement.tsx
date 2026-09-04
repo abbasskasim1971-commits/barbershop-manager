@@ -96,7 +96,11 @@ const UserManagement: React.FC = () => {
                     {user.isActive ? t("active") : t("inactive")}
                   </span>
                 </td>
-                <td>{new Date(user.createdAt).toLocaleDateString('en-GB', { timeZone: 'Asia/Baghdad' })}</td>
+                <td>
+                  {new Date(user.createdAt).toLocaleDateString("en-GB", {
+                    timeZone: "Asia/Baghdad",
+                  })}
+                </td>
                 <td>
                   {!user.isActive ? (
                     <span className="text-muted">{t("deactivated")}</span>

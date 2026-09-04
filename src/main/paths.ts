@@ -1,12 +1,12 @@
-import { app } from 'electron';
-import path from 'path';
+import { app } from "electron";
+import path from "path";
 
 const getUserDataPath = (): string => {
-  return app.getPath('userData');
+  return app.getPath("userData");
 };
 
 const getDatabasePath = (): string => {
-  return path.join(getUserDataPath(), 'barbershop.db');
+  return path.join(getUserDataPath(), "barbershop.db");
 };
 
 export { getUserDataPath, getDatabasePath };

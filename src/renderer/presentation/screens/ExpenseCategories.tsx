@@ -175,7 +175,11 @@ const ExpenseCategories: React.FC = () => {
                     {category.isDeleted ? t("inactive") : t("active")}
                   </span>
                 </td>
-                <td>{new Date(category.createdAt).toLocaleDateString('en-GB', { timeZone: 'Asia/Baghdad' })}</td>
+                <td>
+                  {new Date(category.createdAt).toLocaleDateString("en-GB", {
+                    timeZone: "Asia/Baghdad",
+                  })}
+                </td>
                 <td>
                   <div className="action-buttons">
                     <button

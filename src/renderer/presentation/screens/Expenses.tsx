@@ -233,7 +233,11 @@ const Expenses: React.FC = () => {
                 <td>{expense.category}</td>
                 <td>{expense.amount.toLocaleString()} IQD</td>
                 <td>{expense.description || "-"}</td>
-                <td>{new Date(expense.createdAt).toLocaleDateString('en-GB', { timeZone: 'Asia/Baghdad' })}</td>
+                <td>
+                  {new Date(expense.createdAt).toLocaleDateString("en-GB", {
+                    timeZone: "Asia/Baghdad",
+                  })}
+                </td>
                 <td>
                   <div className="action-buttons">
                     <button
