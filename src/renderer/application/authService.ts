@@ -107,6 +107,11 @@ export class AuthService {
     return this.currentUser?.role === "owner";
   }
 
+  static canAccessEodReport(): boolean {
+    const role = this.currentUser?.role;
+    return role === "owner" || role === "manager";
+  }
+
   static canAccessUserManagement(): boolean {
     return this.currentUser?.role === "owner";
   }

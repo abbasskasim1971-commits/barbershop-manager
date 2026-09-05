@@ -80,6 +80,18 @@ interface SaleRecord {
   createdBy: number;
 }
 
+interface DailyClosingRecord {
+  id: number;
+  businessDate: string;
+  stationId: number;
+  expectedCash: number;
+  countedCash: number;
+  difference: number;
+  expenseTotal: number;
+  closedBy: number;
+  closedAt: string;
+}
+
 interface DbApi {
   getDbPath: () => Promise<string>;
 
@@ -236,6 +248,33 @@ interface DbApi {
     barberId: number,
     rate: number,
   ) => Promise<{ success: boolean; error?: string }>;
+
+  // EOD methods
+  getEodStatus: (sessionId: string) => Promise<{ today: string } | null>;
+  getEodSummary: (
+    sessionId: string,
+    date: string,
+    stationId?: number,
+  ) => Promise<{
+    date: string;
+    stationId: number;
+    salesCount: number;
+    salesTotal: number;
+    expenseTotal: number;
+    closed: boolean;
+    closing: DailyClosingRecord | null;
+  } | null>;
+  closeDay: (
+    sessionId: string,
+    date: string,
+    countedCash: number,
+    stationId?: number,
+  ) => Promise<{ success: boolean; error?: string; closing?: DailyClosingRecord }>;
+  getEodClosings: (
+    sessionId: string,
+    limit?: number,
+    offset?: number,
+  ) => Promise<DailyClosingRecord[]>;
 
   // Sales methods
   getSaleById: (sessionId: string, id: number) => Promise<SaleRecord | undefined>;
@@ -465,6 +504,15 @@ contextBridge.exposeInMainWorld("api", {
   setCommissionRate: (sessionId: string, barberId: number, rate: number) =>
     ipcRenderer.invoke("commission:setRate", sessionId, barberId, rate),
 
+  // EOD methods
+  getEodStatus: (sessionId: string) => ipcRenderer.invoke("eod:getStatus", sessionId),
+  getEodSummary: (sessionId: string, date: string, stationId?: number) =>
+    ipcRenderer.invoke("eod:getSummary", sessionId, date, stationId),
+  closeDay: (sessionId: string, date: string, countedCash: number, stationId?: number) =>
+    ipcRenderer.invoke("eod:closeDay", sessionId, date, countedCash, stationId),
+  getEodClosings: (sessionId: string, limit?: number, offset?: number) =>
+    ipcRenderer.invoke("eod:getClosings", sessionId, limit, offset),
+
   // Sales methods
   getSaleById: (sessionId: string, id: number) =>
     ipcRenderer.invoke("sales:getById", sessionId, id),
@@ -527,4 +575,5 @@ export type {
   EventRecord,
   CommissionRateRecord,
   SaleRecord,
+  DailyClosingRecord,
 };

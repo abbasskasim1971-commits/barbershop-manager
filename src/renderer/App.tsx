@@ -16,6 +16,7 @@ import Products from "./presentation/screens/Products";
 import ExpenseCategories from "./presentation/screens/ExpenseCategories";
 import BarberPos from "./presentation/screens/BarberPos";
 import CommissionManagement from "./presentation/screens/CommissionManagement";
+import Eod from "./presentation/screens/Eod";
 
 type Screen =
   | "dashboard"
@@ -28,7 +29,8 @@ type Screen =
   | "services"
   | "products"
   | "expenseCategories"
-  | "commissionManagement";
+  | "commissionManagement"
+  | "eod";
 
 const screenComponents: Record<Screen, React.FC> = {
   dashboard: Dashboard,
@@ -42,6 +44,7 @@ const screenComponents: Record<Screen, React.FC> = {
   products: Products,
   expenseCategories: ExpenseCategories,
   commissionManagement: CommissionManagement,
+  eod: Eod,
 };
 
 function AppContent() {
@@ -61,6 +64,7 @@ function AppContent() {
     canAccessExpenses,
     canAccessSettings,
     canAccessCommissionManagement,
+    canAccessEodReport,
     checkOwnerExists,
   } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
@@ -135,6 +139,7 @@ function AppContent() {
       label: t("commissionManagement"),
       permission: () => canAccessCommissionManagement(),
     },
+    { id: "eod", label: t("eodReport"), permission: () => canAccessEodReport() },
   ];
 
   const visibleTabs = tabs.filter((tab) => tab.permission());

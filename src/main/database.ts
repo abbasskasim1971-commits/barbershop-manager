@@ -21,6 +21,14 @@ export function calendarDateToUtcRange(dateStr: string): { start: string; end: s
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
+export function toBaghdadDate(isoUtc: string): string {
+  const d = new Date(isoUtc);
+  const shifted = new Date(d.getTime() + BUSINESS_TZ_OFFSET_HOURS * 60 * 60 * 1000);
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    shifted.getUTCDate(),
+  ).padStart(2, "0")}`;
+}
+
 export type UserRole = "owner" | "manager" | "barber";
 
 export interface ServiceRecord {
@@ -101,6 +109,18 @@ export interface SaleRecord {
   createdBy: number;
 }
 
+export interface DailyClosingRecord {
+  id: number;
+  businessDate: string;
+  stationId: number;
+  expectedCash: number;
+  countedCash: number;
+  difference: number;
+  expenseTotal: number;
+  closedBy: number;
+  closedAt: string;
+}
+
 let db: Database | null = null;
 let SQL: SqlJsStatic | null = null;
 let inTransaction = false;
@@ -130,10 +150,11 @@ export function runSql(
 ): { changes: number; lastInsertRowid: number } {
   if (!db) throw new Error("Database not initialized");
   db.run(sqlStr, params);
-  if (!inTransaction) saveDatabase();
   const lastIdResult = db.exec("SELECT last_insert_rowid()");
   const lastId = (lastIdResult[0]?.values[0]?.[0] as number) || 0;
-  return { changes: db.getRowsModified(), lastInsertRowid: lastId };
+  const changes = db.getRowsModified();
+  if (!inTransaction) saveDatabase();
+  return { changes, lastInsertRowid: lastId };
 }
 
 export function beginTransaction(): void {
@@ -299,6 +320,24 @@ export function rowToSale(row: SqlValue[]): SaleRecord {
     createdAt: row[6] as string,
     createdBy: row[7] as number,
   };
+}
+
+export function rowToDailyClosing(row: SqlValue[]): DailyClosingRecord {
+  return {
+    id: row[0] as number,
+    businessDate: row[1] as string,
+    stationId: row[2] as number,
+    expectedCash: row[3] as number,
+    countedCash: row[4] as number,
+    difference: row[5] as number,
+    expenseTotal: row[6] as number,
+    closedBy: row[7] as number,
+    closedAt: row[8] as string,
+  };
+}
+
+export function mapDailyClosings(rows: SqlValue[][]): DailyClosingRecord[] {
+  return rows.map(rowToDailyClosing);
 }
 
 export function mapServices(rows: SqlValue[][]): ServiceRecord[] {
@@ -526,6 +565,28 @@ export function runMigrations(): void {
 
     db.run("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)", [
       "002_phase3_schema",
+      getUtcNow(),
+    ] as BindParams);
+  }
+
+  if (!applied.has("003_phase8_eod")) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS daily_closings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        business_date TEXT NOT NULL,
+        station_id INTEGER NOT NULL DEFAULT 1,
+        expected_cash INTEGER NOT NULL DEFAULT 0,
+        counted_cash INTEGER NOT NULL DEFAULT 0,
+        difference INTEGER NOT NULL DEFAULT 0,
+        expense_total INTEGER NOT NULL DEFAULT 0,
+        closed_by INTEGER NOT NULL,
+        closed_at TEXT NOT NULL,
+        UNIQUE (business_date, station_id)
+      );
+    `);
+
+    db.run("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)", [
+      "003_phase8_eod",
       getUtcNow(),
     ] as BindParams);
   }

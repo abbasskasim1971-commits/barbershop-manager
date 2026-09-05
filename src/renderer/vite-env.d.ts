@@ -80,6 +80,18 @@ interface SaleRecord {
   createdBy: number;
 }
 
+interface DailyClosingRecord {
+  id: number;
+  businessDate: string;
+  stationId: number;
+  expectedCash: number;
+  countedCash: number;
+  difference: number;
+  expenseTotal: number;
+  closedBy: number;
+  closedAt: string;
+}
+
 interface SaleLine {
   type: "service" | "product";
   itemId: number;
@@ -237,6 +249,32 @@ interface DbApi {
     barberId: number,
     rate: number,
   ) => Promise<{ success: boolean; error?: string }>;
+
+  getEodStatus: (sessionId: string) => Promise<{ today: string } | null>;
+  getEodSummary: (
+    sessionId: string,
+    date: string,
+    stationId?: number,
+  ) => Promise<{
+    date: string;
+    stationId: number;
+    salesCount: number;
+    salesTotal: number;
+    expenseTotal: number;
+    closed: boolean;
+    closing: DailyClosingRecord | null;
+  } | null>;
+  closeDay: (
+    sessionId: string,
+    date: string,
+    countedCash: number,
+    stationId?: number,
+  ) => Promise<{ success: boolean; error?: string; closing?: DailyClosingRecord }>;
+  getEodClosings: (
+    sessionId: string,
+    limit?: number,
+    offset?: number,
+  ) => Promise<DailyClosingRecord[]>;
 
   getSaleById: (sessionId: string, id: number) => Promise<SaleRecord | undefined>;
   getAllSales: (sessionId: string, limit?: number, offset?: number) => Promise<SaleRecord[]>;
