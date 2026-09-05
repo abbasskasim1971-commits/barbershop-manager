@@ -1070,3 +1070,81 @@ body {
   font-weight: 700;
 }
 
+/* Reports */
+.report-actions {
+  margin-right: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.report-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.report-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.report-presets {
+  display: flex;
+  gap: 6px;
+}
+
+.report-dates {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.report-content {
+  margin-top: 8px;
+}
+
+.sort-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  padding: 0;
+}
+
+.th-num,
+.td-num {
+  text-align: right;
+}
+
+.pl-stats {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.pl-stat {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.pl-table {
+  max-width: 520px;
+}
+
+.row-strong td {
+  font-weight: 700;
+  background: #f8f9fa;
+}
+

@@ -316,6 +316,47 @@ interface DbApi {
     stationId?: number,
   ) => Promise<void>;
   getEvents: (sessionId: string, limit?: number, offset?: number) => Promise<EventRecord[]>;
+
+  getReportPresetRange: (
+    sessionId: string,
+    preset: "daily" | "weekly" | "monthly",
+    date?: string,
+  ) => Promise<{ startDate: string; endDate: string } | null>;
+  getReport: (
+    sessionId: string,
+    report: ReportName,
+    startDate: string,
+    endDate: string,
+    barberId?: number,
+  ) => Promise<ReportPayload | null>;
+  getReportPrintHtml: (
+    sessionId: string,
+    report: ReportName,
+    startDate: string,
+    endDate: string,
+    barberId?: number,
+  ) => Promise<string | null>;
+  printReport: (
+    sessionId: string,
+    report: ReportName,
+    startDate: string,
+    endDate: string,
+    barberId?: number,
+  ) => Promise<{ success: boolean; error?: string }>;
+  exportReport: (
+    sessionId: string,
+    report: ReportName,
+    startDate: string,
+    endDate: string,
+    barberId?: number,
+  ) => Promise<{ success: boolean; error?: string; path?: string }>;
+  getReportExcelBase64: (
+    sessionId: string,
+    report: ReportName,
+    startDate: string,
+    endDate: string,
+    barberId?: number,
+  ) => Promise<{ success: boolean; base64: string } | null>;
 }
 
 interface AuthApi {
@@ -374,6 +415,93 @@ interface AuthApi {
 }
 
 declare global {
+  type ReportName = "sales" | "barberDues" | "barberComparison" | "profitLoss";
+
+  interface ServiceBreakdownRow {
+    name: string;
+    quantity: number;
+    revenue: number;
+  }
+
+  interface ProductBreakdownRow {
+    productId: number;
+    name: string;
+    quantity: number;
+    revenue: number;
+    cost: number;
+    grossProfit: number;
+  }
+
+  interface SalesReportPayload {
+    reportName: "sales";
+    startDate: string;
+    endDate: string;
+    barberId: number | null;
+    barberName: string | null;
+    salesCount: number;
+    serviceJobsCount: number;
+    productItemsCount: number;
+    serviceRevenue: number;
+    productRevenue: number;
+    totalRevenue: number;
+    cogs: number;
+    byService: ServiceBreakdownRow[];
+    byProduct: ProductBreakdownRow[];
+  }
+
+  interface BarberRow {
+    barberId: number;
+    username: string;
+    salesCount: number;
+    jobs: number;
+    serviceRevenue: number;
+    commission: number;
+  }
+
+  interface BarberDuesPayload {
+    reportName: "barberDues";
+    startDate: string;
+    endDate: string;
+    rows: BarberRow[];
+    totals: {
+      salesCount: number;
+      jobs: number;
+      serviceRevenue: number;
+      commission: number;
+    };
+  }
+
+  interface BarberComparisonRow extends BarberRow {
+    rank: number;
+  }
+
+  interface BarberComparisonPayload {
+    reportName: "barberComparison";
+    startDate: string;
+    endDate: string;
+    rows: BarberComparisonRow[];
+  }
+
+  interface ProfitLossPayload {
+    reportName: "profitLoss";
+    startDate: string;
+    endDate: string;
+    salesCount: number;
+    serviceJobsCount: number;
+    serviceRevenue: number;
+    productRevenue: number;
+    salesRevenue: number;
+    cogs: number;
+    grossProfit: number;
+    barberCommissions: number;
+    operatingExpenses: number;
+    netShopProfit: number;
+    ownerWithdrawals: number;
+  }
+
+  type ReportPayload =
+    SalesReportPayload | BarberDuesPayload | BarberComparisonPayload | ProfitLossPayload;
+
   interface Window {
     api: DbApi;
     auth: AuthApi;

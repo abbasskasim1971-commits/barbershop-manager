@@ -8,6 +8,7 @@ import { registerExpenseHandlers } from "./ipc/expenses";
 import { registerSalesHandlers } from "./ipc/sales";
 import { registerAuditHandlers } from "./ipc/audit";
 import { registerEodHandlers } from "./ipc/eod";
+import { registerReportHandlers } from "./ipc/reports";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -40,6 +41,7 @@ function setupIPC(): void {
   registerSalesHandlers();
   registerAuditHandlers();
   registerEodHandlers();
+  registerReportHandlers();
 }
 
 app.whenReady().then(async () => {
