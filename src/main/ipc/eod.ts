@@ -13,6 +13,7 @@ import {
   calendarDateToUtcRange,
   toBaghdadDate,
   mapDailyClosings,
+  isOwnerStation,
 } from "../database";
 import { createBackup } from "../backup";
 import type { BindParams } from "sql.js";
@@ -42,11 +43,15 @@ export function registerEodHandlers(): void {
     if (!BUSINESS_DATE_RE.test(date) || !isRealDate(date)) return null;
     const { start, end } = calendarDateToUtcRange(date);
     const stationId = session.stationId;
+    // The owner station is the shop authority: its EOD aggregates sales from
+    // every station (including barber-station sales ingested via sync).
+    const shopWide = isOwnerStation(stationId);
+    const salesSql = shopWide
+      ? "SELECT COUNT(*) AS cnt, COALESCE(SUM(cash_amount), 0) AS total FROM sales WHERE is_deleted = 0 AND created_at >= ? AND created_at < ?"
+      : "SELECT COUNT(*) AS cnt, COALESCE(SUM(cash_amount), 0) AS total FROM sales WHERE is_deleted = 0 AND created_at >= ? AND created_at < ? AND station_id = ?";
+    const salesParams: BindParams = shopWide ? [start, end] : [start, end, stationId];
 
-    const salesRow = runOne(
-      "SELECT COUNT(*) AS cnt, COALESCE(SUM(cash_amount), 0) AS total FROM sales WHERE is_deleted = 0 AND created_at >= ? AND created_at < ? AND station_id = ?",
-      [start, end, stationId] as BindParams,
-    );
+    const salesRow = runOne(salesSql, salesParams);
     const expenseRow = runOne(
       "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE is_deleted = 0 AND created_at >= ? AND created_at < ?",
       [start, end] as BindParams,
@@ -97,10 +102,12 @@ export function registerEodHandlers(): void {
       try {
         beginTransaction();
 
-        const salesRow = runOne(
-          "SELECT COALESCE(SUM(cash_amount), 0) AS total FROM sales WHERE is_deleted = 0 AND created_at >= ? AND created_at < ? AND station_id = ?",
-          [start, end, stationId] as BindParams,
-        );
+        const shopWide = isOwnerStation(stationId);
+        const salesSql = shopWide
+          ? "SELECT COALESCE(SUM(cash_amount), 0) AS total FROM sales WHERE is_deleted = 0 AND created_at >= ? AND created_at < ?"
+          : "SELECT COALESCE(SUM(cash_amount), 0) AS total FROM sales WHERE is_deleted = 0 AND created_at >= ? AND created_at < ? AND station_id = ?";
+        const salesParams: BindParams = shopWide ? [start, end] : [start, end, stationId];
+        const salesRow = runOne(salesSql, salesParams);
         const expenseRow = runOne(
           "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE is_deleted = 0 AND created_at >= ? AND created_at < ?",
           [start, end] as BindParams,

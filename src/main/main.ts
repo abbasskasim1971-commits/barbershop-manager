@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from "electron";
 import path from "path";
 import { initializeDatabase, saveDatabase } from "./database";
+import { startIngestServer, stopIngestServer } from "./ingest";
 import { registerAuthHandlers } from "./ipc/auth";
 import { registerServiceHandlers } from "./ipc/services";
 import { registerProductHandlers } from "./ipc/products";
@@ -47,6 +48,7 @@ function setupIPC(): void {
 app.whenReady().then(async () => {
   await initializeDatabase();
   setupIPC();
+  startIngestServer();
   createWindow();
 });
 
@@ -63,5 +65,6 @@ app.on("activate", () => {
 });
 
 app.on("before-quit", () => {
+  stopIngestServer();
   saveDatabase();
 });

@@ -198,6 +198,28 @@ export function isOwnerStation(stationId: number): boolean {
   return stationId === getOwnerStationId();
 }
 
+export interface TokenStation {
+  id: number;
+  role: "owner" | "barber";
+  isActive: boolean;
+  tokenHash: string;
+}
+
+// All stations that have a provisioned outbound API token. The caller compares
+// a candidate token hash constant-time (timingSafeEqual) rather than letting
+// SQL do an early-exit string comparison.
+export function listTokenStations(): TokenStation[] {
+  const rows = runQuery(
+    "SELECT id, role, is_active, api_token_hash FROM stations WHERE api_token_hash IS NOT NULL AND api_token_hash != ''",
+  );
+  return rows.map((r) => ({
+    id: r[0] as number,
+    role: r[1] as "owner" | "barber",
+    isActive: r[2] === 1,
+    tokenHash: r[3] as string,
+  }));
+}
+
 const OUTBOX_STATUS_PENDING = "pending";
 
 // Inserts a barber-station sale into the durable local outbox for later sync.
@@ -804,6 +826,22 @@ export function runMigrations(): void {
 
     db.run("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)", [
       "005_phase10b_outbox",
+      getUtcNow(),
+    ] as BindParams);
+  }
+
+  if (!applied.has("006_phase10c_owner_ingest")) {
+    // Stations authenticate outbound sync pushes with a provisioned token; only
+    // the sha256 hash is stored. Column is nullable: owner station and stations
+    // without a provisioned token remain untouched.
+    try {
+      db.run("ALTER TABLE stations ADD COLUMN api_token_hash TEXT");
+    } catch {
+      // Column may already exist; ignore
+    }
+
+    db.run("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)", [
+      "006_phase10c_owner_ingest",
       getUtcNow(),
     ] as BindParams);
   }
