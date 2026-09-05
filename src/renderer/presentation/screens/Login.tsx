@@ -18,7 +18,7 @@ const Login: React.FC = () => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
-    const result = await login(username, password, 1);
+    const result = await login(username, password);
     setIsLoading(false);
     if (!result.success) {
       setError(result.error || t("loginFailed"));
@@ -29,7 +29,7 @@ const Login: React.FC = () => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
-    const result = await loginPin(pin, 1);
+    const result = await loginPin(pin);
     setIsLoading(false);
     if (!result.success) {
       setError(result.error || t("loginFailed"));

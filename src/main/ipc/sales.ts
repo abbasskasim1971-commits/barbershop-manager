@@ -24,6 +24,7 @@ export function registerSalesHandlers(): void {
     if (!row) return undefined;
     return {
       id: row[0] as number,
+      saleUuid: (row[8] as string) || "",
       barberId: row[1] as number,
       stationId: row[2] as number,
       totalAmount: row[3] as number,
@@ -98,7 +99,6 @@ export function registerSalesHandlers(): void {
       _event,
       sessionId: string,
       barberId: number,
-      stationId: number,
       lines: Array<{ type: "service" | "product"; itemId: number; name: string; quantity: number }>,
     ) => {
       const session = requireAuth(sessionId, ["owner", "manager", "barber"]);
@@ -120,6 +120,10 @@ export function registerSalesHandlers(): void {
         }
       }
 
+      // Station identity is device-authoritative: a sale always originates at the
+      // authenticated device's bound station, never from a renderer-supplied value.
+      const stationId = session.stationId;
+      const saleUuid = `sale_${crypto.randomUUID()}`;
       const now = getUtcNow();
       try {
         beginTransaction();
@@ -191,15 +195,16 @@ export function registerSalesHandlers(): void {
         }
 
         const result = runSql(
-          "INSERT INTO sales (barber_id, station_id, total_amount, cash_amount, is_deleted, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO sales (barber_id, station_id, total_amount, cash_amount, is_deleted, created_at, created_by, sale_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
           [
             effectiveBarberId,
-            stationId || 1,
+            stationId,
             totalAmount,
             totalAmount,
             0,
             now,
             session.userId,
+            saleUuid,
           ] as BindParams,
         );
         const saleId = result.lastInsertRowid;
@@ -221,8 +226,8 @@ export function registerSalesHandlers(): void {
         );
         logSystemEvent(
           "sale_created",
-          `Sale created: ${saleId} (total: ${totalAmount})`,
-          stationId || 1,
+          `Sale created: ${saleId} (uuid: ${saleUuid}, total: ${totalAmount})`,
+          stationId,
         );
 
         return { success: true, id: saleId, totalAmount };

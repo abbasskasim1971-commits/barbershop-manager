@@ -71,6 +71,7 @@ interface CommissionRateRecord {
 
 interface SaleRecord {
   id: number;
+  saleUuid: string;
   barberId: number;
   stationId: number;
   totalAmount: number;
@@ -254,7 +255,6 @@ interface DbApi {
   getEodSummary: (
     sessionId: string,
     date: string,
-    stationId?: number,
   ) => Promise<{
     date: string;
     stationId: number;
@@ -268,7 +268,6 @@ interface DbApi {
     sessionId: string,
     date: string,
     countedCash: number,
-    stationId?: number,
   ) => Promise<{ success: boolean; error?: string; closing?: DailyClosingRecord }>;
   getEodClosings: (
     sessionId: string,
@@ -282,7 +281,6 @@ interface DbApi {
   createSale: (
     sessionId: string,
     barberId: number,
-    stationId: number,
     lines: SaleLine[],
   ) => Promise<{ success: boolean; error?: string; id?: number; totalAmount?: number }>;
   correctSale: (sessionId: string, saleId: number) => Promise<{ success: boolean; error?: string }>;
@@ -309,12 +307,7 @@ interface DbApi {
     }>;
   }>;
 
-  logEvent: (
-    sessionId: string,
-    eventType: string,
-    details: string,
-    stationId?: number,
-  ) => Promise<void>;
+  logEvent: (sessionId: string, eventType: string, details: string) => Promise<void>;
   getEvents: (sessionId: string, limit?: number, offset?: number) => Promise<EventRecord[]>;
 
   getReportPresetRange: (
@@ -363,17 +356,13 @@ interface AuthApi {
   login: (
     username: string,
     password: string,
-    stationId: number,
   ) => Promise<{
     success: boolean;
     error?: string;
     user?: { id: number; username: string; role: string };
     sessionId?: string;
   }>;
-  loginPin: (
-    pin: string,
-    stationId: number,
-  ) => Promise<{
+  loginPin: (pin: string) => Promise<{
     success: boolean;
     error?: string;
     user?: { id: number; username: string; role: string };

@@ -36,44 +36,43 @@ export function registerEodHandlers(): void {
     return { today: toBaghdadDate(getUtcNow()) };
   });
 
-  ipcMain.handle(
-    "eod:getSummary",
-    async (_event, sessionId: string, date: string, stationId = 1) => {
-      const session = requireAuth(sessionId, ["owner", "manager"]);
-      if (!session) return null;
-      if (!BUSINESS_DATE_RE.test(date) || !isRealDate(date)) return null;
-      const { start, end } = calendarDateToUtcRange(date);
+  ipcMain.handle("eod:getSummary", async (_event, sessionId: string, date: string) => {
+    const session = requireAuth(sessionId, ["owner", "manager"]);
+    if (!session) return null;
+    if (!BUSINESS_DATE_RE.test(date) || !isRealDate(date)) return null;
+    const { start, end } = calendarDateToUtcRange(date);
+    const stationId = session.stationId;
 
-      const salesRow = runOne(
-        "SELECT COUNT(*) AS cnt, COALESCE(SUM(cash_amount), 0) AS total FROM sales WHERE is_deleted = 0 AND created_at >= ? AND created_at < ? AND station_id = ?",
-        [start, end, stationId] as BindParams,
-      );
-      const expenseRow = runOne(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE is_deleted = 0 AND created_at >= ? AND created_at < ?",
-        [start, end] as BindParams,
-      );
-      const closing = runOne(
-        "SELECT * FROM daily_closings WHERE business_date = ? AND station_id = ?",
-        [date, stationId] as BindParams,
-      );
+    const salesRow = runOne(
+      "SELECT COUNT(*) AS cnt, COALESCE(SUM(cash_amount), 0) AS total FROM sales WHERE is_deleted = 0 AND created_at >= ? AND created_at < ? AND station_id = ?",
+      [start, end, stationId] as BindParams,
+    );
+    const expenseRow = runOne(
+      "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE is_deleted = 0 AND created_at >= ? AND created_at < ?",
+      [start, end] as BindParams,
+    );
+    const closing = runOne(
+      "SELECT * FROM daily_closings WHERE business_date = ? AND station_id = ?",
+      [date, stationId] as BindParams,
+    );
 
-      return {
-        date,
-        stationId,
-        salesCount: salesRow ? (salesRow[0] as number) : 0,
-        salesTotal: salesRow ? (salesRow[1] as number) : 0,
-        expenseTotal: expenseRow ? (expenseRow[0] as number) : 0,
-        closed: Boolean(closing && closing.length > 0),
-        closing: closing ? mapDailyClosings([closing])[0] : null,
-      };
-    },
-  );
+    return {
+      date,
+      stationId,
+      salesCount: salesRow ? (salesRow[0] as number) : 0,
+      salesTotal: salesRow ? (salesRow[1] as number) : 0,
+      expenseTotal: expenseRow ? (expenseRow[0] as number) : 0,
+      closed: Boolean(closing && closing.length > 0),
+      closing: closing ? mapDailyClosings([closing])[0] : null,
+    };
+  });
 
   ipcMain.handle(
     "eod:closeDay",
-    async (_event, sessionId: string, date: string, countedCash: number, stationId = 1) => {
+    async (_event, sessionId: string, date: string, countedCash: number) => {
       const session = requireAuth(sessionId, ["owner", "manager"]);
       if (!session) return { success: false, error: "Unauthorized" };
+      const stationId = session.stationId;
 
       if (!BUSINESS_DATE_RE.test(date) || !isRealDate(date)) {
         return { success: false, error: "Invalid business date" };

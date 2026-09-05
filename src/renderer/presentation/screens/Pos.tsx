@@ -146,7 +146,7 @@ const Pos: React.FC = () => {
     }));
 
     try {
-      const result = await createSale(selectedBarber, 1, lines);
+      const result = await createSale(selectedBarber, lines);
       if (result.success) {
         setSuccess(t("saleCompleted"));
         setSaleLines([]);

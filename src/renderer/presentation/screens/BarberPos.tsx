@@ -96,7 +96,7 @@ const BarberPos: React.FC = () => {
     }));
 
     try {
-      const result = await createSale(user?.id || 0, 1, lines);
+      const result = await createSale(user?.id || 0, lines);
       if (result.success) {
         setSuccess(t("saleCompleted"));
         setCart([]);

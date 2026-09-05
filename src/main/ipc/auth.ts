@@ -12,6 +12,7 @@ import {
   beginTransaction,
   commitTransaction,
   rollbackTransaction,
+  getDeviceStationId,
 } from "../database";
 import { getDatabasePath } from "../paths";
 import type { BindParams, SqlValue } from "sql.js";
@@ -23,63 +24,69 @@ export function registerAuthHandlers(): void {
     return getDatabasePath();
   });
 
-  ipcMain.handle(
-    "auth:login",
-    async (_event, username: string, password: string, stationId: number) => {
-      try {
-        const user = runOne("SELECT * FROM users WHERE username = ? AND is_active = 1", [
-          username,
-        ] as BindParams);
-        if (!user) {
-          logSystemEvent(
-            "login_failed",
-            `Failed login attempt for username: ${username}`,
-            stationId || 1,
-          );
-          return { success: false, error: "Invalid credentials" };
-        }
-
-        const passwordHash = user[3] as string | null;
-        if (!passwordHash) {
-          logSystemEvent("login_failed", `No password set for user: ${username}`, stationId || 1);
-          return { success: false, error: "No password set for this account" };
-        }
-
-        const isValid = bcrypt.compareSync(password, passwordHash);
-        if (!isValid) {
-          logSystemEvent("login_failed", `Invalid password for user: ${username}`, stationId || 1);
-          return { success: false, error: "Invalid credentials" };
-        }
-
-        const userId = user[0] as number;
-        const role = user[2] as UserRole;
-        const sessionId = `session_${crypto.randomUUID()}`;
-
-        runSql(
-          "INSERT INTO user_sessions (session_id, user_id, station_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
-          [
-            sessionId,
-            userId,
-            stationId || 1,
-            getUtcNow(),
-            new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          ] as BindParams,
+  ipcMain.handle("auth:login", async (_event, username: string, password: string) => {
+    try {
+      const user = runOne("SELECT * FROM users WHERE username = ? AND is_active = 1", [
+        username,
+      ] as BindParams);
+      if (!user) {
+        logSystemEvent(
+          "login_failed",
+          `Failed login attempt for username: ${username}`,
+          getDeviceStationId(),
         );
-
-        logSystemEvent("login_success", `User ${username} logged in`, stationId || 1);
-
-        return {
-          success: true,
-          user: { id: userId, username: user[1] as string, role },
-          sessionId,
-        };
-      } catch (error) {
-        return { success: false, error: "Authentication failed" };
+        return { success: false, error: "Invalid credentials" };
       }
-    },
-  );
 
-  ipcMain.handle("auth:loginPin", async (_event, pin: string, stationId: number) => {
+      const passwordHash = user[3] as string | null;
+      if (!passwordHash) {
+        logSystemEvent(
+          "login_failed",
+          `No password set for user: ${username}`,
+          getDeviceStationId(),
+        );
+        return { success: false, error: "No password set for this account" };
+      }
+
+      const isValid = bcrypt.compareSync(password, passwordHash);
+      if (!isValid) {
+        logSystemEvent(
+          "login_failed",
+          `Invalid password for user: ${username}`,
+          getDeviceStationId(),
+        );
+        return { success: false, error: "Invalid credentials" };
+      }
+
+      const userId = user[0] as number;
+      const role = user[2] as UserRole;
+      const sessionId = `session_${crypto.randomUUID()}`;
+      const stationId = getDeviceStationId();
+
+      runSql(
+        "INSERT INTO user_sessions (session_id, user_id, station_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+        [
+          sessionId,
+          userId,
+          stationId,
+          getUtcNow(),
+          new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        ] as BindParams,
+      );
+
+      logSystemEvent("login_success", `User ${username} logged in`, stationId);
+
+      return {
+        success: true,
+        user: { id: userId, username: user[1] as string, role },
+        sessionId,
+      };
+    } catch (error) {
+      return { success: false, error: "Authentication failed" };
+    }
+  });
+
+  ipcMain.handle("auth:loginPin", async (_event, pin: string) => {
     try {
       const users = runQuery("SELECT * FROM users WHERE role = ? AND is_active = 1", [
         "barber",
@@ -95,25 +102,26 @@ export function registerAuthHandlers(): void {
       }
 
       if (!matchedUser) {
-        logSystemEvent("login_failed", `Invalid PIN attempt`, stationId || 1);
+        logSystemEvent("login_failed", "Invalid PIN attempt", getDeviceStationId());
         return { success: false, error: "Invalid PIN" };
       }
 
       const userId = matchedUser[0] as number;
       const sessionId = `session_${crypto.randomUUID()}`;
+      const stationId = getDeviceStationId();
 
       runSql(
         "INSERT INTO user_sessions (session_id, user_id, station_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
         [
           sessionId,
           userId,
-          stationId || 1,
+          stationId,
           getUtcNow(),
           new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         ] as BindParams,
       );
 
-      logSystemEvent("login_success", `Barber ${matchedUser[1]} logged in via PIN`, stationId || 1);
+      logSystemEvent("login_success", `Barber ${matchedUser[1]} logged in via PIN`, stationId);
 
       return {
         success: true,
@@ -131,7 +139,7 @@ export function registerAuthHandlers(): void {
       const session = verifySession(sessionId);
       if (!session) return { success: true };
       runSql("DELETE FROM user_sessions WHERE session_id = ?", [sessionId] as BindParams);
-      logSystemEvent("logout", `Session logged out`, 1);
+      logSystemEvent("logout", `Session logged out`, session.stationId);
       return { success: true };
     } catch (error) {
       return { success: false, error: "Logout failed" };
@@ -210,7 +218,11 @@ export function registerAuthHandlers(): void {
           throw txError;
         }
 
-        logSystemEvent("password_changed", `Password changed for user ${user[1]}`, 1);
+        logSystemEvent(
+          "password_changed",
+          `Password changed for user ${user[1]}`,
+          session.stationId,
+        );
 
         return { success: true };
       } catch (error) {
@@ -281,7 +293,11 @@ export function registerAuthHandlers(): void {
           [username, role, passwordHash, pinHash, 1, now, now] as BindParams,
         );
 
-        logSystemEvent("user_created", `User ${username} created with role ${role}`, 1);
+        logSystemEvent(
+          "user_created",
+          `User ${username} created with role ${role}`,
+          session.stationId,
+        );
 
         return { success: true, userId: result.lastInsertRowid };
       } catch (error) {
@@ -316,7 +332,7 @@ export function registerAuthHandlers(): void {
         throw txError;
       }
 
-      logSystemEvent("user_deactivated", `User id ${userId} deactivated`, 1);
+      logSystemEvent("user_deactivated", `User id ${userId} deactivated`, session.stationId);
 
       return { success: true };
     } catch (error) {
@@ -378,7 +394,11 @@ export function registerAuthHandlers(): void {
         [username, "owner", passwordHash, null, 1, now, now] as BindParams,
       );
 
-      logSystemEvent("first_run_setup", `First Owner account created: ${username}`, 1);
+      logSystemEvent(
+        "first_run_setup",
+        `First Owner account created: ${username}`,
+        getDeviceStationId(),
+      );
 
       return { success: true, userId: result.lastInsertRowid };
     } catch (error) {

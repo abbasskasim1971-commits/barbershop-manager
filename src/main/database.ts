@@ -100,6 +100,7 @@ export interface CommissionRateRecord {
 
 export interface SaleRecord {
   id: number;
+  saleUuid: string;
   barberId: number;
   stationId: number;
   totalAmount: number;
@@ -107,6 +108,16 @@ export interface SaleRecord {
   isDeleted: boolean;
   createdAt: string;
   createdBy: number;
+}
+
+export interface StationRecord {
+  id: number;
+  stationUuid: string;
+  role: "owner" | "barber";
+  label: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DailyClosingRecord {
@@ -131,6 +142,62 @@ export function getDb(): Database | null {
 
 export function getUtcNow(): string {
   return new Date().toISOString();
+}
+
+const STATION_DEVICE_KEY = "station.device_id";
+
+// Returns the UUID of the station this device is bound to, looked up via the
+// persisted app_settings value. Never read from the renderer.
+export function getDeviceStationUuid(): string {
+  if (!db) return "";
+  const row = runOne("SELECT value FROM app_settings WHERE key = ?", [
+    STATION_DEVICE_KEY,
+  ] as BindParams);
+  return (row?.[0] as string) || "";
+}
+
+// The local session/legacy station integer (defaults to 1) for this device's
+// bound station. Resolves the persisted device UUID to its integer station id.
+export function getDeviceStationId(): number {
+  const uuid = getDeviceStationUuid();
+  if (!uuid) return 1;
+  const row = runOne("SELECT id FROM stations WHERE station_uuid = ? AND is_active = 1", [
+    uuid,
+  ] as BindParams);
+  return (row?.[0] as number) || 1;
+}
+
+// Ensures this device always has a persisted station identity. Used at startup
+// as well as during migration for robustness if the row is ever cleared.
+export function ensureDeviceIdentity(): void {
+  if (!db) return;
+  const existing = getDeviceStationUuid();
+  if (existing) return;
+  const owner = runOne(
+    "SELECT station_uuid FROM stations WHERE role = 'owner' AND is_active = 1 ORDER BY id LIMIT 1",
+  );
+  const uuid = (owner?.[0] as string) || `station_${crypto.randomUUID()}`;
+  db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)", [
+    STATION_DEVICE_KEY,
+    uuid,
+  ] as BindParams);
+  if (!inTransaction) saveDatabase();
+}
+
+export function rowToStation(row: SqlValue[]): StationRecord {
+  return {
+    id: row[0] as number,
+    stationUuid: row[1] as string,
+    role: row[2] as "owner" | "barber",
+    label: row[3] as string | null,
+    isActive: row[4] === 1,
+    createdAt: row[5] as string,
+    updatedAt: row[6] as string,
+  };
+}
+
+export function mapStations(rows: SqlValue[][]): StationRecord[] {
+  return rows.map(rowToStation);
 }
 
 export function runQuery(sqlStr: string, params: BindParams = []): SqlValue[][] {
@@ -203,25 +270,28 @@ export function logSystemEvent(event_type: string, details: string, stationId: n
   if (!inTransaction) saveDatabase();
 }
 
-export function verifySession(sessionId: string): { userId: number; role: UserRole } | null {
+export function verifySession(
+  sessionId: string,
+): { userId: number; role: UserRole; stationId: number } | null {
   if (!sessionId) return null;
   const session = runOne(
-    "SELECT user_id FROM user_sessions WHERE session_id = ? AND expires_at > ?",
+    "SELECT user_id, station_id FROM user_sessions WHERE session_id = ? AND expires_at > ?",
     [sessionId, getUtcNow()] as BindParams,
   );
   if (!session) return null;
   const userId = session[0] as number;
+  const stationId = (session[1] as number) || 1;
   const user = runOne("SELECT id, role FROM users WHERE id = ? AND is_active = 1", [
     userId,
   ] as BindParams);
   if (!user) return null;
-  return { userId, role: user[1] as UserRole };
+  return { userId, role: user[1] as UserRole, stationId };
 }
 
 export function requireAuth(
   sessionId: string,
   allowedRoles: UserRole[],
-): { userId: number; role: UserRole } | null {
+): { userId: number; role: UserRole; stationId: number } | null {
   const session = verifySession(sessionId);
   if (!session) return null;
   if (!allowedRoles.includes(session.role)) return null;
@@ -312,6 +382,7 @@ export function rowToCommissionRate(row: SqlValue[]): CommissionRateRecord {
 export function rowToSale(row: SqlValue[]): SaleRecord {
   return {
     id: row[0] as number,
+    saleUuid: (row[8] as string) || "",
     barberId: row[1] as number,
     stationId: row[2] as number,
     totalAmount: row[3] as number,
@@ -387,10 +458,13 @@ export async function initializeDatabase(): Promise<void> {
     db = new SQL.Database(new Uint8Array(fileBuffer));
   } else {
     db = new SQL.Database();
-    runMigrations();
-    seedDefaultUser();
     saveDatabase();
   }
+
+  runMigrations();
+  seedDefaultUser();
+  ensureDeviceIdentity();
+  saveDatabase();
 }
 
 export function runMigrations(): void {
@@ -587,6 +661,59 @@ export function runMigrations(): void {
 
     db.run("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)", [
       "003_phase8_eod",
+      getUtcNow(),
+    ] as BindParams);
+  }
+
+  if (!applied.has("004_phase10a_station_identity")) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS stations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        station_uuid TEXT NOT NULL UNIQUE,
+        role TEXT NOT NULL DEFAULT 'barber' CHECK (role IN ('owner', 'barber')),
+        label TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+
+    const now = getUtcNow();
+    // The genuine pre-10A database is a single owner/manager shop where all
+    // rows carry station_id = 1. Seed that identical logical station (id=1,
+    // role=owner) so legacy station_id references remain valid and the integer
+    // id stays the local identity while station_uuid becomes the global one.
+    const ownerStationUuid = `station_${crypto.randomUUID()}`;
+    db.run(
+      "INSERT OR IGNORE INTO stations (id, station_uuid, role, label, is_active, created_at, updated_at) VALUES (1, ?, 'owner', 'Main Station', 1, ?, ?)",
+      [ownerStationUuid, now, now] as BindParams,
+    );
+
+    try {
+      db.run("ALTER TABLE sales ADD COLUMN sale_uuid TEXT");
+    } catch {
+      // Column may already exist; ignore
+    }
+
+    db.exec(`
+      UPDATE sales SET sale_uuid = lower(hex(randomblob(16)))
+        WHERE sale_uuid IS NULL OR sale_uuid = '';
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_sale_uuid ON sales(sale_uuid);
+    `);
+
+    // This device's persisted station identity = the owner/master station on
+    // this single-shop device. EnsureDeviceIdentity() reads this at runtime.
+    db.run("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('station.device_id', ?)", [
+      ownerStationUuid,
+    ] as BindParams);
+
+    db.run("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)", [
+      "004_phase10a_station_identity",
       getUtcNow(),
     ] as BindParams);
   }

@@ -12,10 +12,12 @@ import type { BindParams } from "sql.js";
 export function registerAuditHandlers(): void {
   ipcMain.handle(
     "log-event",
-    (_event, sessionId: string, eventType: string, details: string, stationId?: number) => {
+    (_event, sessionId: string, eventType: string, details: string, _stationId?: number) => {
       const session = verifySession(sessionId);
       if (!session) return;
-      logSystemEvent(eventType, details, stationId || 1);
+      // Station identity is device-authoritative: the renderer-supplied
+      // stationId (if any) is ignored and the session's bound station is used.
+      logSystemEvent(eventType, details, session.stationId);
     },
   );
 

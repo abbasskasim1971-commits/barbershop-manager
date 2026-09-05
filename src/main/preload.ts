@@ -71,6 +71,7 @@ interface CommissionRateRecord {
 
 interface SaleRecord {
   id: number;
+  saleUuid: string;
   barberId: number;
   stationId: number;
   totalAmount: number;
@@ -341,7 +342,6 @@ interface DbApi {
   getEodSummary: (
     sessionId: string,
     date: string,
-    stationId?: number,
   ) => Promise<{
     date: string;
     stationId: number;
@@ -355,7 +355,6 @@ interface DbApi {
     sessionId: string,
     date: string,
     countedCash: number,
-    stationId?: number,
   ) => Promise<{ success: boolean; error?: string; closing?: DailyClosingRecord }>;
   getEodClosings: (
     sessionId: string,
@@ -392,18 +391,12 @@ interface DbApi {
   createSale: (
     sessionId: string,
     barberId: number,
-    stationId: number,
     lines: Array<{ type: "service" | "product"; itemId: number; name: string; quantity: number }>,
   ) => Promise<{ success: boolean; error?: string; id?: number; totalAmount?: number }>;
   correctSale: (sessionId: string, saleId: number) => Promise<{ success: boolean; error?: string }>;
 
   // System event log
-  logEvent: (
-    sessionId: string,
-    eventType: string,
-    details: string,
-    stationId?: number,
-  ) => Promise<void>;
+  logEvent: (sessionId: string, eventType: string, details: string) => Promise<void>;
   getEvents: (sessionId: string, limit?: number, offset?: number) => Promise<EventRecord[]>;
 
   // Report methods (owner only)
@@ -453,17 +446,13 @@ interface AuthApi {
   login: (
     username: string,
     password: string,
-    stationId: number,
   ) => Promise<{
     success: boolean;
     error?: string;
     user?: { id: number; username: string; role: string };
     sessionId?: string;
   }>;
-  loginPin: (
-    pin: string,
-    stationId: number,
-  ) => Promise<{
+  loginPin: (pin: string) => Promise<{
     success: boolean;
     error?: string;
     user?: { id: number; username: string; role: string };
@@ -635,10 +624,10 @@ contextBridge.exposeInMainWorld("api", {
 
   // EOD methods
   getEodStatus: (sessionId: string) => ipcRenderer.invoke("eod:getStatus", sessionId),
-  getEodSummary: (sessionId: string, date: string, stationId?: number) =>
-    ipcRenderer.invoke("eod:getSummary", sessionId, date, stationId),
-  closeDay: (sessionId: string, date: string, countedCash: number, stationId?: number) =>
-    ipcRenderer.invoke("eod:closeDay", sessionId, date, countedCash, stationId),
+  getEodSummary: (sessionId: string, date: string) =>
+    ipcRenderer.invoke("eod:getSummary", sessionId, date),
+  closeDay: (sessionId: string, date: string, countedCash: number) =>
+    ipcRenderer.invoke("eod:closeDay", sessionId, date, countedCash),
   getEodClosings: (sessionId: string, limit?: number, offset?: number) =>
     ipcRenderer.invoke("eod:getClosings", sessionId, limit, offset),
 
@@ -654,15 +643,14 @@ contextBridge.exposeInMainWorld("api", {
   createSale: (
     sessionId: string,
     barberId: number,
-    stationId: number,
     lines: Array<{ type: "service" | "product"; itemId: number; name: string; quantity: number }>,
-  ) => ipcRenderer.invoke("sales:create", sessionId, barberId, stationId, lines),
+  ) => ipcRenderer.invoke("sales:create", sessionId, barberId, lines),
   correctSale: (sessionId: string, saleId: number) =>
     ipcRenderer.invoke("sales:correct", sessionId, saleId),
 
   // System event log
-  logEvent: (sessionId: string, eventType: string, details: string, stationId?: number) =>
-    ipcRenderer.invoke("log-event", sessionId, eventType, details, stationId),
+  logEvent: (sessionId: string, eventType: string, details: string) =>
+    ipcRenderer.invoke("log-event", sessionId, eventType, details),
   getEvents: (sessionId: string, limit?: number, offset?: number) =>
     ipcRenderer.invoke("get-events", sessionId, limit, offset),
 
@@ -711,9 +699,9 @@ contextBridge.exposeInMainWorld("api", {
 } as DbApi);
 
 contextBridge.exposeInMainWorld("auth", {
-  login: (username: string, password: string, stationId: number) =>
-    ipcRenderer.invoke("auth:login", username, password, stationId),
-  loginPin: (pin: string, stationId: number) => ipcRenderer.invoke("auth:loginPin", pin, stationId),
+  login: (username: string, password: string) =>
+    ipcRenderer.invoke("auth:login", username, password),
+  loginPin: (pin: string) => ipcRenderer.invoke("auth:loginPin", pin),
   logout: (sessionId: string) => ipcRenderer.invoke("auth:logout", sessionId),
   verifySession: (sessionId: string) => ipcRenderer.invoke("auth:verifySession", sessionId),
   getCurrentUser: (sessionId: string) => ipcRenderer.invoke("auth:getCurrentUser", sessionId),

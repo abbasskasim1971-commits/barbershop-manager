@@ -7,14 +7,14 @@ export async function getEodStatus() {
   return api.getEodStatus(sessionId);
 }
 
-export async function getEodSummary(date: string, stationId?: number) {
+export async function getEodSummary(date: string) {
   const sessionId = AuthService.getSessionId() || "";
-  return api.getEodSummary(sessionId, date, stationId);
+  return api.getEodSummary(sessionId, date);
 }
 
-export async function closeDay(date: string, countedCash: number, stationId?: number) {
+export async function closeDay(date: string, countedCash: number) {
   const sessionId = AuthService.getSessionId() || "";
-  return api.closeDay(sessionId, date, countedCash, stationId);
+  return api.closeDay(sessionId, date, countedCash);
 }
 
 export async function getEodClosings(limit?: number, offset?: number) {

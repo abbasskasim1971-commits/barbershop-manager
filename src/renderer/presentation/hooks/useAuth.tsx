@@ -4,12 +4,8 @@ import { AuthService, User, ListUsersResult } from "../../application/authServic
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (
-    username: string,
-    password: string,
-    stationId?: number,
-  ) => Promise<{ success: boolean; error?: string }>;
-  loginPin: (pin: string, stationId?: number) => Promise<{ success: boolean; error?: string }>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginPin: (pin: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   changePassword: (
     oldPassword: string,
@@ -67,16 +63,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
   }, []);
 
-  const login = async (username: string, password: string, stationId = 1) => {
-    const result = await AuthService.login(username, password, stationId);
+  const login = async (username: string, password: string) => {
+    const result = await AuthService.login(username, password);
     if (result.success) {
       setUser(AuthService.getCurrentUser());
     }
     return { success: result.success, error: result.error };
   };
 
-  const loginPin = async (pin: string, stationId = 1) => {
-    const result = await AuthService.loginPin(pin, stationId);
+  const loginPin = async (pin: string) => {
+    const result = await AuthService.loginPin(pin);
     if (result.success) {
       setUser(AuthService.getCurrentUser());
     }

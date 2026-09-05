@@ -140,8 +140,8 @@ export class AuthService {
     return false;
   }
 
-  static async login(username: string, password: string, stationId = 1): Promise<AuthResult> {
-    const result = await authLogin(username, password, stationId);
+  static async login(username: string, password: string): Promise<AuthResult> {
+    const result = await authLogin(username, password);
     if (result.success && result.sessionId && result.user) {
       this.sessionId = result.sessionId;
       this.currentUser = {
@@ -165,8 +165,8 @@ export class AuthService {
     };
   }
 
-  static async loginPin(pin: string, stationId = 1): Promise<AuthResult> {
-    const result = await authLoginPin(pin, stationId);
+  static async loginPin(pin: string): Promise<AuthResult> {
+    const result = await authLoginPin(pin);
     if (result.success && result.sessionId && result.user) {
       this.sessionId = result.sessionId;
       this.currentUser = {

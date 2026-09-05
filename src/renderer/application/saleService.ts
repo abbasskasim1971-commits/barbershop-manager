@@ -21,11 +21,10 @@ export type SaleLineInput = {
 
 export async function createSale(
   barberId: number,
-  stationId: number,
   lines: SaleLineInput[],
 ): Promise<{ success: boolean; error?: string; id?: number; totalAmount?: number }> {
   const sessionId = AuthService.getSessionId() || "";
-  const result = await api.createSale(sessionId, barberId, stationId, lines);
+  const result = await api.createSale(sessionId, barberId, lines);
   return result;
 }
 

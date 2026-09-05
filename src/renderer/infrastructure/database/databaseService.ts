@@ -1,11 +1,11 @@
 const authApi = window.auth;
 
-export async function authLogin(username: string, password: string, stationId: number) {
-  return authApi.login(username, password, stationId);
+export async function authLogin(username: string, password: string) {
+  return authApi.login(username, password);
 }
 
-export async function authLoginPin(pin: string, stationId: number) {
-  return authApi.loginPin(pin, stationId);
+export async function authLoginPin(pin: string) {
+  return authApi.loginPin(pin);
 }
 
 export async function authLogout(sessionId: string) {
