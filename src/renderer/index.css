@@ -330,6 +330,81 @@ body {
   color: #666;
 }
 
+.sync-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  margin-bottom: 12px;
+  background: #f5f6f8;
+  border: 1px solid #e3e6ea;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #555;
+}
+
+.sync-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #bbb;
+  display: inline-block;
+  flex: none;
+}
+
+.sync-state-online {
+  background: #28a745;
+}
+
+.sync-state-offline {
+  background: #dc3545;
+}
+
+.sync-state-syncing {
+  background: #ffc107;
+}
+
+.settings-section {
+  margin: 20px 0;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #e3e6ea;
+  border-radius: 8px;
+  max-width: 720px;
+}
+
+.settings-section h2 {
+  margin-bottom: 8px;
+  font-size: 16px;
+}
+
+.settings-blurb {
+  margin-bottom: 12px;
+  color: #666;
+  font-size: 13px;
+}
+
+.station-token-box {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fff8e1;
+  border: 1px solid #f0d86a;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #6b5300;
+}
+
+.station-token {
+  display: block;
+  margin: 6px 0;
+  word-break: break-all;
+  font-family: monospace;
+  background: #fff;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px dashed #d0b64a;
+}
+
 @media (max-width: 768px) {
   .nav-tabs {
     flex-wrap: wrap;

@@ -1,7 +1,8 @@
 import { app, BrowserWindow } from "electron";
 import path from "path";
-import { initializeDatabase, saveDatabase } from "./database";
+import { initializeDatabase, saveDatabase, isBarberProvisioned } from "./database";
 import { startIngestServer, stopIngestServer } from "./ingest";
+import { startSyncClient, stopSyncClient } from "./sync/client";
 import { registerAuthHandlers } from "./ipc/auth";
 import { registerServiceHandlers } from "./ipc/services";
 import { registerProductHandlers } from "./ipc/products";
@@ -10,6 +11,7 @@ import { registerSalesHandlers } from "./ipc/sales";
 import { registerAuditHandlers } from "./ipc/audit";
 import { registerEodHandlers } from "./ipc/eod";
 import { registerReportHandlers } from "./ipc/reports";
+import { registerSyncHandlers } from "./ipc/sync";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -43,12 +45,17 @@ function setupIPC(): void {
   registerAuditHandlers();
   registerEodHandlers();
   registerReportHandlers();
+  registerSyncHandlers();
 }
 
 app.whenReady().then(async () => {
   await initializeDatabase();
   setupIPC();
-  startIngestServer();
+  if (isBarberProvisioned()) {
+    startSyncClient();
+  } else {
+    startIngestServer();
+  }
   createWindow();
 });
 
@@ -66,5 +73,6 @@ app.on("activate", () => {
 
 app.on("before-quit", () => {
   stopIngestServer();
+  stopSyncClient();
   saveDatabase();
 });

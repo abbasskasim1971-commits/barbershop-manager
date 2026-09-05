@@ -4,12 +4,14 @@ import {
   getDeviceStationId,
   getOwnerStationId,
   runOne,
+  runQuery,
   runSql,
   beginTransaction,
   commitTransaction,
   rollbackTransaction,
   listTokenStations,
   logSystemEvent,
+  getUtcNow,
 } from "./database";
 import type { BindParams } from "sql.js";
 
@@ -18,6 +20,8 @@ const MAX_BODY_BYTES = 512 * 1024;
 const CLOCK_SKEW_MS = 48 * 60 * 60 * 1000;
 const SALE_UUID_RE = /^sale_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INGEST_PATH = "/api/v1/sales/ingest";
+const PROVISION_PATH = "/api/v1/sync/provision";
+const CATALOG_PATH = "/api/v1/sync/catalog";
 
 let server: http.Server | null = null;
 let started = false;
@@ -245,10 +249,23 @@ export function startIngestServer(): void {
   }
 
   server = http.createServer((req, res) => {
-    if (req.method !== "POST" || req.url !== INGEST_PATH) {
-      if (req.url === INGEST_PATH)
-        sendJson(res, 405, { success: false, error: "method not allowed" });
-      else sendJson(res, 404, { success: false, error: "not found" });
+    const url = req.url || "/";
+    if (req.method === "GET" && (url === PROVISION_PATH || url === CATALOG_PATH)) {
+      void handleSyncGetRequest(req, res, url === CATALOG_PATH);
+      return;
+    }
+    if (req.method !== "POST" || url !== INGEST_PATH) {
+      sendJson(
+        res,
+        url === INGEST_PATH || url === PROVISION_PATH || url === CATALOG_PATH ? 405 : 404,
+        {
+          success: false,
+          error:
+            url === INGEST_PATH || url === PROVISION_PATH || url === CATALOG_PATH
+              ? "method not allowed"
+              : "not found",
+        },
+      );
       return;
     }
     void handleIngestRequest(req, res);
@@ -261,6 +278,68 @@ export function startIngestServer(): void {
   const ownerId = getOwnerStationId();
   server.listen(port, "0.0.0.0", () => {
     logSystemEvent("sync_server_started", `Owner ingest server listening on port ${port}`, ownerId);
+  });
+}
+
+async function handleSyncGetRequest(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  wantCatalog: boolean,
+): Promise<void> {
+  const token = bearerToken(req);
+  if (!token) {
+    sendJson(res, 401, { success: false, error: "authentication required" });
+    return;
+  }
+  const station = authenticateStation(token);
+  if (!station) {
+    sendJson(res, 401, { success: false, error: "authentication failed" });
+    return;
+  }
+  if (!station.isActive) {
+    sendJson(res, 403, { success: false, error: "station is not active" });
+    return;
+  }
+  if (station.role !== "barber") {
+    sendJson(res, 403, { success: false, error: "source station is not a barber station" });
+    return;
+  }
+  if (wantCatalog) {
+    const services = runQuery(
+      "SELECT id, name, description, price, is_deleted, updated_at FROM services ORDER BY id",
+    ).map((r) => ({
+      id: r[0] as number,
+      name: r[1] as string,
+      description: r[2] as string | null,
+      price: Number(r[3]),
+      isDeleted: r[4] === 1,
+      updatedAt: r[5] as string,
+    }));
+    const barbers = runQuery(
+      "SELECT id, username, pin_hash, is_active, updated_at FROM users WHERE role = 'barber' ORDER BY id",
+    ).map((r) => ({
+      id: r[0] as number,
+      username: r[1] as string,
+      pinHash: r[2] as string | null,
+      isActive: r[3] === 1,
+      updatedAt: r[4] as string,
+    }));
+    logSystemEvent("sync_catalog_served", `Catalog served to station ${station.id}`, station.id);
+    sendJson(res, 200, { success: true, generated_at: getUtcNow(), services, barbers });
+    return;
+  }
+  const row = runOne("SELECT station_uuid, label FROM stations WHERE id = ?", [
+    station.id,
+  ] as BindParams);
+  const stationUuid = (row?.[0] as string) ?? "";
+  const label = (row?.[1] as string | null) ?? null;
+  logSystemEvent("sync_provision_sent", `Provision accepted for station ${station.id}`, station.id);
+  sendJson(res, 200, {
+    success: true,
+    station_id: station.id,
+    station_uuid: stationUuid,
+    role: station.role,
+    label,
   });
 }
 

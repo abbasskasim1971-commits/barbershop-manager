@@ -11,6 +11,7 @@ import Reports from "./presentation/screens/Reports";
 import Settings from "./presentation/screens/Settings";
 import UserManagement from "./presentation/screens/UserManagement";
 import FirstRunSetup from "./presentation/screens/FirstRunSetup";
+import Provision from "./presentation/screens/Provision";
 import Services from "./presentation/screens/Services";
 import Products from "./presentation/screens/Products";
 import ExpenseCategories from "./presentation/screens/ExpenseCategories";
@@ -71,6 +72,9 @@ function AppContent() {
   const [isRTL, setIsRTL] = useState(true);
   const [ownerExists, setOwnerExists] = useState(false);
   const [checkingOwner, setCheckingOwner] = useState(true);
+  const [provisioned, setProvisioned] = useState(false);
+  const [deviceInfoChecked, setDeviceInfoChecked] = useState(false);
+  const [showOwnerSetup, setShowOwnerSetup] = useState(false);
 
   useEffect(() => {
     document.dir = isRTL ? "rtl" : "ltr";
@@ -85,6 +89,22 @@ function AppContent() {
     checkOwner();
   }, [checkOwnerExists]);
 
+  useEffect(() => {
+    const checkDevice = async () => {
+      try {
+        const info = await window.sync.getDeviceInfo();
+        setProvisioned(info.provisioned);
+      } finally {
+        setDeviceInfoChecked(true);
+      }
+    };
+    checkDevice();
+  }, []);
+
+  const handleProvisioned = () => {
+    setProvisioned(true);
+  };
+
   const handleLanguageChange = (lng: string) => {
     i18n.changeLanguage(lng);
   };
@@ -93,7 +113,7 @@ function AppContent() {
     await logout();
   };
 
-  if (isLoading || checkingOwner) {
+  if (isLoading || checkingOwner || !deviceInfoChecked) {
     return (
       <div className="app" dir={isRTL ? "rtl" : "ltr"}>
         <div className="loading-screen">{t("loading")}</div>
@@ -102,6 +122,14 @@ function AppContent() {
   }
 
   if (!ownerExists) {
+    if (provisioned) {
+      return <Login defaultMode="barber" />;
+    }
+    if (!showOwnerSetup) {
+      return (
+        <Provision onProvisioned={handleProvisioned} onOwnerSetup={() => setShowOwnerSetup(true)} />
+      );
+    }
     return <FirstRunSetup />;
   }
 

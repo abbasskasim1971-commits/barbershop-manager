@@ -4,10 +4,14 @@ import { useAuth } from "../hooks/useAuth";
 
 type LoginMode = "owner" | "barber";
 
-const Login: React.FC = () => {
+interface LoginProps {
+  defaultMode?: LoginMode;
+}
+
+const Login: React.FC<LoginProps> = ({ defaultMode = "owner" }) => {
   const { t } = useTranslation();
   const { login, loginPin } = useAuth();
-  const [mode, setMode] = useState<LoginMode>("owner");
+  const [mode, setMode] = useState<LoginMode>(defaultMode);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");

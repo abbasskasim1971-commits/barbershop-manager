@@ -53,3 +53,29 @@ export async function authCheckOwnerExists() {
 export async function authFirstRunSetup(username: string, password: string) {
   return authApi.firstRunSetup(username, password);
 }
+
+const syncApi = window.sync;
+
+export async function syncGetDeviceInfo() {
+  return syncApi.getDeviceInfo();
+}
+
+export async function syncProvision(host: string, port: number, token: string) {
+  return syncApi.provision(host, port, token);
+}
+
+export async function syncRegisterStation(sessionId: string, label: string) {
+  return syncApi.registerStation(sessionId, label);
+}
+
+export async function syncGetStatus() {
+  return syncApi.getStatus();
+}
+
+export async function syncRunNow() {
+  return syncApi.runNow();
+}
+
+export async function syncListStations(sessionId: string) {
+  return syncApi.listStations(sessionId);
+}

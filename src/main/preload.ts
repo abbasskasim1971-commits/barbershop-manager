@@ -698,6 +698,68 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.invoke("reports:getExcelBase64", sessionId, report, startDate, endDate, barberId),
 } as DbApi);
 
+interface SyncStatus {
+  role: "owner" | "barber";
+  provisioned: boolean;
+  pending: number;
+  sending: number;
+  failed: number;
+  sent: number;
+  state: "online" | "offline" | "idle" | "syncing";
+  syncing: boolean;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  lastError: string | null;
+}
+
+interface SyncApi {
+  getDeviceInfo: () => Promise<{
+    provisioned: boolean;
+    role: string;
+    stationId: number;
+    stationUuid: string;
+    label: string | null;
+  }>;
+  provision: (
+    host: string,
+    port: number,
+    token: string,
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+    info?: {
+      provisioned: boolean;
+      role: string;
+      stationId: number;
+      stationUuid: string;
+      label: string | null;
+    };
+  }>;
+  registerStation: (
+    sessionId: string,
+    label: string,
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+    token?: string;
+    stationId?: number;
+    stationUuid?: string;
+  }>;
+  getStatus: () => Promise<SyncStatus>;
+  runNow: () => Promise<SyncStatus>;
+  listStations: (sessionId: string) => Promise<{
+    stations: Array<{
+      id: number;
+      stationUuid: string;
+      role: string;
+      label: string | null;
+      isActive: boolean;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  }>;
+}
+
 contextBridge.exposeInMainWorld("auth", {
   login: (username: string, password: string) =>
     ipcRenderer.invoke("auth:login", username, password),
@@ -724,9 +786,22 @@ contextBridge.exposeInMainWorld("auth", {
     ipcRenderer.invoke("auth:firstRunSetup", username, password),
 } as AuthApi);
 
+contextBridge.exposeInMainWorld("sync", {
+  getDeviceInfo: () => ipcRenderer.invoke("sync:getDeviceInfo"),
+  provision: (host: string, port: number, token: string) =>
+    ipcRenderer.invoke("sync:provision", host, port, token),
+  registerStation: (sessionId: string, label: string) =>
+    ipcRenderer.invoke("sync:registerStation", sessionId, label),
+  getStatus: () => ipcRenderer.invoke("sync:getStatus"),
+  runNow: () => ipcRenderer.invoke("sync:runNow"),
+  listStations: (sessionId: string) => ipcRenderer.invoke("sync:listStations", sessionId),
+} as SyncApi);
+
 export type {
   DbApi,
   AuthApi,
+  SyncApi,
+  SyncStatus,
   ServiceRecord,
   ProductRecord,
   CategoryRecord,

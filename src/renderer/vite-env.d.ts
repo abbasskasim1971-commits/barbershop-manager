@@ -491,9 +491,72 @@ declare global {
   type ReportPayload =
     SalesReportPayload | BarberDuesPayload | BarberComparisonPayload | ProfitLossPayload;
 
+  interface SyncStatus {
+    role: "owner" | "barber";
+    provisioned: boolean;
+    pending: number;
+    sending: number;
+    failed: number;
+    sent: number;
+    state: "online" | "offline" | "idle" | "syncing";
+    syncing: boolean;
+    lastSuccessAt: string | null;
+    lastErrorAt: string | null;
+    lastError: string | null;
+  }
+
+  interface SyncApi {
+    getDeviceInfo: () => Promise<{
+      provisioned: boolean;
+      role: string;
+      stationId: number;
+      stationUuid: string;
+      label: string | null;
+    }>;
+    provision: (
+      host: string,
+      port: number,
+      token: string,
+    ) => Promise<{
+      ok: boolean;
+      error?: string;
+      info?: {
+        provisioned: boolean;
+        role: string;
+        stationId: number;
+        stationUuid: string;
+        label: string | null;
+      };
+    }>;
+    registerStation: (
+      sessionId: string,
+      label: string,
+    ) => Promise<{
+      success: boolean;
+      error?: string;
+      token?: string;
+      stationId?: number;
+      stationUuid?: string;
+    }>;
+    getStatus: () => Promise<SyncStatus>;
+    runNow: () => Promise<SyncStatus>;
+    listStations: (sessionId: string) => Promise<{
+      stations: Array<{
+        id: number;
+        stationUuid: string;
+        role: string;
+        label: string | null;
+        isActive: boolean;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+    }>;
+  }
+
   interface Window {
     api: DbApi;
     auth: AuthApi;
+    sync: SyncApi;
   }
 }
 

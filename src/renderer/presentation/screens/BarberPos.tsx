@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { createSale, getServices } from "../../application/saleService";
+import { SyncService } from "../../application/syncService";
+import type { SyncStatus } from "../../application/syncService";
 
 interface PosService {
   id: number;
@@ -25,6 +27,8 @@ const BarberPos: React.FC = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [sync, setSync] = useState<SyncStatus | null>(null);
+  const [syncNow, setSyncNow] = useState(false);
   const submittingRef = useRef(false);
 
   useEffect(() => {
@@ -38,6 +42,34 @@ const BarberPos: React.FC = () => {
     };
     loadServices();
   }, [t]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const status = await SyncService.getStatus();
+        if (!cancelled) setSync(status);
+      } catch {
+        // ignore transient status read failures
+      }
+    };
+    refresh();
+    const id = setInterval(refresh, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  const handleSyncNow = async () => {
+    setSyncNow(true);
+    try {
+      const status = await SyncService.runNow();
+      setSync(status);
+    } finally {
+      setSyncNow(false);
+    }
+  };
 
   const barberName = user?.username || "";
 
@@ -115,11 +147,29 @@ const BarberPos: React.FC = () => {
         <h1>{t("barberPos")}</h1>
         <div className="barber-pos-user">
           <span>{barberName}</span>
+          <button
+            className="btn btn-sm btn-outline"
+            onClick={handleSyncNow}
+            disabled={syncNow}
+            title={t("syncNow")}
+          >
+            {syncNow ? t("syncing") : t("syncNow")}
+          </button>
           <button className="btn btn-sm btn-outline" onClick={() => logout()}>
             {t("logout")}
           </button>
         </div>
       </div>
+
+      {sync && (
+        <div className="sync-status-bar">
+          <span className={`sync-dot sync-state-${sync.state}`} />
+          <span>
+            {t(`syncState_${sync.state}`)} · {t("syncPending")}: {sync.pending} · {t("syncFailed")}:{" "}
+            {sync.failed}
+          </span>
+        </div>
+      )}
 
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}

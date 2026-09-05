@@ -222,6 +222,272 @@ export function listTokenStations(): TokenStation[] {
 
 const OUTBOX_STATUS_PENDING = "pending";
 
+// ── Sync client configuration & status ───────────────────────────────────
+// Represents whether THIS device has been provisioned as a barber touch
+// station (owner + port + token configured, device identity is a barber
+// station). Owner devices are never "provisioned" in this sense.
+export function getAppSetting(key: string): string | null {
+  const row = runOne("SELECT value FROM app_settings WHERE key = ?", [key] as BindParams);
+  return (row?.[0] as string) ?? null;
+}
+
+export function setAppSetting(key: string, value: string): void {
+  runSql(
+    "INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    [key, value] as BindParams,
+  );
+}
+
+const PROVISIONED_KEY = "sync.provisioned";
+
+export function isBarberProvisioned(): boolean {
+  if (getAppSetting(PROVISIONED_KEY) !== "1") return false;
+  const uuid = getDeviceStationUuid();
+  if (!uuid) return false;
+  const station = runOne("SELECT role FROM stations WHERE station_uuid = ? AND is_active = 1", [
+    uuid,
+  ] as BindParams);
+  return !!station && station[0] === "barber";
+}
+
+export interface SyncClientConfig {
+  ownerHost: string;
+  ownerPort: number;
+  token: string;
+}
+
+export function getSyncClientConfig(): SyncClientConfig | null {
+  const host = getAppSetting("sync.owner_host");
+  const portRaw = getAppSetting("sync.owner_port");
+  const token = getAppSetting("sync.station_token");
+  if (!host || !portRaw || !token) return null;
+  const port = Number.parseInt(portRaw, 10);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
+  return { ownerHost: host, ownerPort: port, token };
+}
+
+export function setSyncClientConfig(
+  config: SyncClientConfig,
+  stationUuid: string,
+  stationId: number,
+  label: string | null,
+): void {
+  const now = getUtcNow();
+  beginTransaction();
+  try {
+    setAppSetting("sync.owner_host", config.ownerHost);
+    setAppSetting("sync.owner_port", String(config.ownerPort));
+    setAppSetting("sync.station_token", config.token);
+    // Materialize this device's barber station locally with the AUTHORITATIVE
+    // integer id from the owner, so local sales always resolve to the owner's
+    // station id (source_station_id) and the device identity resolves to a real
+    // row on this device.
+    runSql(
+      `INSERT INTO stations (id, station_uuid, role, label, is_active, created_at, updated_at)
+       VALUES (?, ?, 'barber', ?, 1, ?, ?)
+       ON CONFLICT(station_uuid) DO UPDATE SET is_active = 1, label = excluded.label, updated_at = excluded.updated_at`,
+      [stationId, stationUuid, label, now, now] as BindParams,
+    );
+    setAppSetting("station.device_id", stationUuid);
+    setAppSetting(PROVISIONED_KEY, "1");
+    commitTransaction();
+  } catch (error) {
+    rollbackTransaction();
+    throw error;
+  }
+}
+
+export function setSyncStatusField(
+  key: "state" | "syncing" | "last_success_at" | "last_error_at" | "last_error",
+  value: string | null,
+): void {
+  if (value === null) {
+    runSql("DELETE FROM app_settings WHERE key = ?", [`sync.${key}`] as BindParams);
+  } else {
+    setAppSetting(`sync.${key}`, value);
+  }
+}
+
+export interface SyncStatus {
+  role: "owner" | "barber";
+  provisioned: boolean;
+  pending: number;
+  sending: number;
+  failed: number;
+  sent: number;
+  state: "online" | "offline" | "idle" | "syncing";
+  syncing: boolean;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  lastError: string | null;
+}
+
+export function getSyncStatus(): SyncStatus {
+  const provisioned = isBarberProvisioned();
+  const counts: Record<string, number> = { pending: 0, sending: 0, failed: 0, sent: 0 };
+  const rows = runQuery("SELECT status, COUNT(*) FROM sync_outbox GROUP BY status");
+  for (const row of rows) {
+    const status = row[0] as string;
+    if (status in counts) counts[status] = row[1] as number;
+  }
+  const stateRaw = getAppSetting("sync.state");
+  const syncing = getAppSetting("sync.syncing") === "1";
+  const state = syncing
+    ? "syncing"
+    : stateRaw === "online" || stateRaw === "offline"
+      ? stateRaw
+      : "idle";
+  return {
+    role: provisioned ? "barber" : "owner",
+    provisioned,
+    pending: counts.pending,
+    sending: counts.sending,
+    failed: counts.failed,
+    sent: counts.sent,
+    state,
+    syncing,
+    lastSuccessAt: getAppSetting("sync.last_success_at"),
+    lastErrorAt: getAppSetting("sync.last_error_at"),
+    lastError: getAppSetting("sync.last_error"),
+  };
+}
+
+// ── Outbox delivery state machine ────────────────────────────────────────
+// pending   = queued, eligible for (auto or manual) delivery
+// sending   = claimed by an in-flight worker run (restart-safe: stale rows are
+//             re-claimed on the next run)
+// sent      = owner acknowledged (accepted or duplicate) — terminal
+// failed    = a delivery attempt failed; retry scheduled via next_retry_at, or
+//             next_retry_at NULL for permanent failures (manual retry only)
+//
+// A row is never marked 'sent' except after an explicit owner acknowledgement.
+
+export interface OutboxEntry {
+  id: number;
+  saleUuid: string;
+  sourceStationId: number;
+  payload: Record<string, unknown>;
+  attempts: number;
+}
+
+function rowToOutboxEntry(row: SqlValue[]): OutboxEntry {
+  return {
+    id: row[0] as number,
+    saleUuid: row[1] as string,
+    sourceStationId: row[2] as number,
+    payload: JSON.parse(row[3] as string) as Record<string, unknown>,
+    attempts: row[4] as number,
+  };
+}
+
+// Claims eligible entries for delivery. Auto mode targets pending (or stale
+// 'sending' rows left by a previously interrupted run) plus failed rows whose
+// backoff window has elapsed. Manual mode retries every pending/failed row.
+export function claimDueOutboxEntries(now: string, manual: boolean): OutboxEntry[] {
+  const where = manual
+    ? "status IN ('pending', 'failed', 'sending')"
+    : "(status = 'pending' OR status = 'sending') OR (status = 'failed' AND next_retry_at IS NOT NULL AND next_retry_at <= ?)";
+  const rows = runQuery(
+    `SELECT id, sale_uuid, source_station_id, payload_json, attempts FROM sync_outbox WHERE ${where} ORDER BY id ASC`,
+    manual ? [] : ([now] as BindParams),
+  );
+  const entries = rows.map(rowToOutboxEntry);
+  if (entries.length > 0) {
+    for (const entry of entries) {
+      runSql("UPDATE sync_outbox SET status = ?, updated_at = ? WHERE id = ?", [
+        "sending",
+        now,
+        entry.id,
+      ] as BindParams);
+    }
+  }
+  return entries;
+}
+
+export function markOutboxSent(id: number, sentAt: string): void {
+  runSql(
+    "UPDATE sync_outbox SET status = ?, sent_at = ?, error = NULL, next_retry_at = NULL, updated_at = ? WHERE id = ?",
+    ["sent", sentAt, sentAt, id] as BindParams,
+  );
+}
+
+export function markOutboxFailed(
+  id: number,
+  attempts: number,
+  error: string,
+  nextRetryAt: string | null,
+): void {
+  runSql(
+    "UPDATE sync_outbox SET status = ?, attempts = ?, error = ?, next_retry_at = ?, updated_at = ? WHERE id = ?",
+    ["failed", attempts, error === "" ? null : error, nextRetryAt, getUtcNow(), id] as BindParams,
+  );
+}
+
+// ── Owner -> barber catalog application ───────────────────────────────────
+// The owner is authoritative: rows are upserted by owner id, so authoritative
+// ids and effective data are preserved, and owner-deleted services are marked
+// locally. Barbers (only) are synced with their bcrypt PIN hash to keep the
+// touch station usable offline.
+
+export interface SyncedService {
+  id: number;
+  name: string;
+  description: string | null;
+  price: number;
+  isDeleted: boolean;
+  updatedAt: string;
+}
+
+export interface SyncedBarber {
+  id: number;
+  username: string;
+  pinHash: string | null;
+  isActive: boolean;
+  updatedAt: string;
+}
+
+export function applySyncedCatalog(services: SyncedService[], barbers: SyncedBarber[]): void {
+  beginTransaction();
+  try {
+    for (const svc of services) {
+      runSql(
+        "INSERT INTO services (id, name, description, price, is_deleted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description, price = excluded.price, is_deleted = excluded.is_deleted, updated_at = excluded.updated_at",
+        [
+          svc.id,
+          svc.name,
+          svc.description,
+          svc.price,
+          svc.isDeleted ? 1 : 0,
+          svc.updatedAt,
+          svc.updatedAt,
+        ] as BindParams,
+      );
+    }
+    for (const barber of barbers) {
+      runSql(
+        "INSERT INTO users (id, username, role, password_hash, pin_hash, is_active, created_at, updated_at) VALUES (?, ?, 'barber', NULL, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET username = excluded.username, role = 'barber', pin_hash = excluded.pin_hash, is_active = excluded.is_active, updated_at = excluded.updated_at",
+        [
+          barber.id,
+          barber.username,
+          barber.pinHash,
+          barber.isActive ? 1 : 0,
+          barber.updatedAt,
+          barber.updatedAt,
+        ] as BindParams,
+      );
+    }
+    commitTransaction();
+  } catch (error) {
+    rollbackTransaction();
+    throw error;
+  }
+  logSystemEvent(
+    "sync_catalog_applied",
+    `Applied catalog: ${services.length} services, ${barbers.length} barbers`,
+    getDeviceStationId(),
+  );
+}
+
 // Inserts a barber-station sale into the durable local outbox for later sync.
 // Runs inside the caller's active transaction so sale + outbox commit/rollback
 // together. INSERT OR IGNORE combined with UNIQUE (sale_uuid, source_station_id)
