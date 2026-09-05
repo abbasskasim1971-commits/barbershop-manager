@@ -553,10 +553,36 @@ declare global {
     }>;
   }
 
+  type WhatsAppSessionState = "unlinked" | "linking" | "ready" | "disconnected" | "relink-required";
+
+  interface WhatsAppStatus {
+    available: boolean;
+    configured: boolean;
+    numberMasked: string | null;
+    state: WhatsAppSessionState;
+    lastError: string | null;
+    lastAttemptAt: string | null;
+  }
+
+  interface WhatsAppApi {
+    getConfig: (sessionId: string) => Promise<WhatsAppStatus>;
+    setOwnerNumber: (
+      sessionId: string,
+      rawNumber: string,
+    ) => Promise<{ success: boolean; error?: string; status?: WhatsAppStatus }>;
+    beginLink: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+    stopLink: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+    sendClosing: (
+      sessionId: string,
+      closingId: number,
+    ) => Promise<{ success: boolean; error?: string; sentTo?: string }>;
+  }
+
   interface Window {
     api: DbApi;
     auth: AuthApi;
     sync: SyncApi;
+    whatsapp: WhatsAppApi;
   }
 }
 

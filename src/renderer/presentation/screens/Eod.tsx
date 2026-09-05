@@ -7,6 +7,7 @@ import {
   closeDay,
   getEodClosings,
 } from "../../application/eodService";
+import { sendWhatsAppClosing } from "../../application/whatsappService";
 
 interface Summary {
   date: string;
@@ -40,6 +41,9 @@ const Eod: React.FC = () => {
   const [countedCash, setCountedCash] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [history, setHistory] = useState<Summary["closing"][]>([]);
+  const [waSending, setWaSending] = useState(false);
+  const [waError, setWaError] = useState("");
+  const [waSuccess, setWaSuccess] = useState("");
 
   useEffect(() => {
     const init = async () => {
@@ -108,6 +112,25 @@ const Eod: React.FC = () => {
       setError(t("operationFailed"));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!summary?.closing) return;
+    setWaError("");
+    setWaSuccess("");
+    setWaSending(true);
+    try {
+      const result = await sendWhatsAppClosing(summary.closing.id);
+      if (result.success) {
+        setWaSuccess(t("whatsappSent"));
+      } else {
+        setWaError(result.error || t("operationFailed"));
+      }
+    } catch {
+      setWaError(t("operationFailed"));
+    } finally {
+      setWaSending(false);
     }
   };
 
@@ -208,32 +231,45 @@ const Eod: React.FC = () => {
                 )}
               </div>
             ) : (
-              history.length > 0 && (
-                <div className="table-container">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>{t("businessDate")}</th>
-                        <th>{t("expectedCash")}</th>
-                        <th>{t("countedCash")}</th>
-                        <th>{t("difference")}</th>
-                        <th>{t("expenseTotal")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.map((c) => (
-                        <tr key={c?.id}>
-                          <td>{c?.businessDate}</td>
-                          <td>{(c?.expectedCash ?? 0).toLocaleString()} IQD</td>
-                          <td>{(c?.countedCash ?? 0).toLocaleString()} IQD</td>
-                          <td>{(c?.difference ?? 0).toLocaleString()} IQD</td>
-                          <td>{(c?.expenseTotal ?? 0).toLocaleString()} IQD</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <>
+                <div className="eod-whatsapp-actions">
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleSendWhatsApp}
+                    disabled={waSending}
+                  >
+                    {waSending ? t("whatsappSending") : t("whatsappSend")}
+                  </button>
+                  {waError && <div className="alert alert-error">{waError}</div>}
+                  {waSuccess && <div className="alert alert-success">{waSuccess}</div>}
                 </div>
-              )
+                {history.length > 0 && (
+                  <div className="table-container">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>{t("businessDate")}</th>
+                          <th>{t("expectedCash")}</th>
+                          <th>{t("countedCash")}</th>
+                          <th>{t("difference")}</th>
+                          <th>{t("expenseTotal")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {history.map((c) => (
+                          <tr key={c?.id}>
+                            <td>{c?.businessDate}</td>
+                            <td>{(c?.expectedCash ?? 0).toLocaleString()} IQD</td>
+                            <td>{(c?.countedCash ?? 0).toLocaleString()} IQD</td>
+                            <td>{(c?.difference ?? 0).toLocaleString()} IQD</td>
+                            <td>{(c?.expenseTotal ?? 0).toLocaleString()} IQD</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
           </div>
         ) : (

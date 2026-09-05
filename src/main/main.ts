@@ -12,6 +12,7 @@ import { registerAuditHandlers } from "./ipc/audit";
 import { registerEodHandlers } from "./ipc/eod";
 import { registerReportHandlers } from "./ipc/reports";
 import { registerSyncHandlers } from "./ipc/sync";
+import { registerWhatsAppHandlers } from "./ipc/whatsapp";
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -46,6 +47,7 @@ function setupIPC(): void {
   registerEodHandlers();
   registerReportHandlers();
   registerSyncHandlers();
+  registerWhatsAppHandlers();
 }
 
 app.whenReady().then(async () => {

@@ -797,11 +797,49 @@ contextBridge.exposeInMainWorld("sync", {
   listStations: (sessionId: string) => ipcRenderer.invoke("sync:listStations", sessionId),
 } as SyncApi);
 
+export type WhatsAppSessionState =
+  "unlinked" | "linking" | "ready" | "disconnected" | "relink-required";
+
+interface WhatsAppStatus {
+  available: boolean;
+  configured: boolean;
+  numberMasked: string | null;
+  state: WhatsAppSessionState;
+  lastError: string | null;
+  lastAttemptAt: string | null;
+}
+
+interface WhatsAppApi {
+  getConfig: (sessionId: string) => Promise<WhatsAppStatus>;
+  setOwnerNumber: (
+    sessionId: string,
+    rawNumber: string,
+  ) => Promise<{ success: boolean; error?: string; status?: WhatsAppStatus }>;
+  beginLink: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+  stopLink: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+  sendClosing: (
+    sessionId: string,
+    closingId: number,
+  ) => Promise<{ success: boolean; error?: string; sentTo?: string }>;
+}
+
+contextBridge.exposeInMainWorld("whatsapp", {
+  getConfig: (sessionId: string) => ipcRenderer.invoke("whatsapp:getConfig", sessionId),
+  setOwnerNumber: (sessionId: string, rawNumber: string) =>
+    ipcRenderer.invoke("whatsapp:setOwnerNumber", sessionId, rawNumber),
+  beginLink: (sessionId: string) => ipcRenderer.invoke("whatsapp:beginLink", sessionId),
+  stopLink: (sessionId: string) => ipcRenderer.invoke("whatsapp:stopLink", sessionId),
+  sendClosing: (sessionId: string, closingId: number) =>
+    ipcRenderer.invoke("whatsapp:sendClosing", sessionId, closingId),
+} as WhatsAppApi);
+
 export type {
   DbApi,
   AuthApi,
   SyncApi,
   SyncStatus,
+  WhatsAppApi,
+  WhatsAppStatus,
   ServiceRecord,
   ProductRecord,
   CategoryRecord,
