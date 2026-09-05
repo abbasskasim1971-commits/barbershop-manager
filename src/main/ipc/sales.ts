@@ -13,6 +13,8 @@ import {
   mapSales,
   rowToCommissionRate,
   calendarDateToUtcRange,
+  isOwnerStation,
+  enqueueSaleOutbox,
 } from "../database";
 import type { BindParams, SqlValue } from "sql.js";
 
@@ -130,6 +132,15 @@ export function registerSalesHandlers(): void {
 
         let totalAmount = 0;
         const lineOps: Array<{ sql: string; params: SqlValue[] }> = [];
+        const lineRecords: Array<{
+          type: "service" | "product";
+          itemId: number;
+          name: string;
+          price: number;
+          costPrice: number | null;
+          quantity: number;
+          lineTotal: number;
+        }> = [];
 
         for (const line of lines) {
           if (line.quantity <= 0) {
@@ -147,6 +158,15 @@ export function registerSalesHandlers(): void {
             const quantity = line.quantity;
             const lineTotal = price * quantity;
             totalAmount += lineTotal;
+            lineRecords.push({
+              type: "service",
+              itemId: line.itemId,
+              name: line.name,
+              price,
+              costPrice: null,
+              quantity,
+              lineTotal,
+            });
             lineOps.push({
               sql: "INSERT INTO sale_service_lines (sale_id, service_id, name, price, quantity, line_total) VALUES (?, ?, ?, ?, ?, ?)",
               params: [null, line.itemId, line.name, price, quantity, lineTotal],
@@ -170,6 +190,15 @@ export function registerSalesHandlers(): void {
             }
             const lineTotal = price * qty;
             totalAmount += lineTotal;
+            lineRecords.push({
+              type: "product",
+              itemId: line.itemId,
+              name: line.name,
+              price,
+              costPrice,
+              quantity: qty,
+              lineTotal,
+            });
 
             const newStock = currentStock - qty;
             runSql("UPDATE products SET quantity = ?, updated_at = ? WHERE id = ?", [
@@ -212,6 +241,45 @@ export function registerSalesHandlers(): void {
         for (const op of lineOps) {
           const fixedParams = [saleId, ...op.params.slice(1)] as BindParams;
           runSql(op.sql, fixedParams);
+        }
+
+        // Durable outbox enqueue for barber-station service sales. Runs inside
+        // this same transaction: if it throws, the sale rolls back; if the sale
+        // rolls back, the outbox row cannot exist. Owner-station sales are
+        // already local to the shop authority and are never queued for sync.
+        const isBarberStationSale = isBarber && !isOwnerStation(stationId);
+        if (isBarberStationSale) {
+          let barberUsername = "";
+          const barberRow = runOne("SELECT username FROM users WHERE id = ?", [
+            effectiveBarberId,
+          ] as BindParams);
+          if (barberRow) barberUsername = barberRow[0] as string;
+          const stationRow = runOne("SELECT station_uuid FROM stations WHERE id = ?", [
+            stationId,
+          ] as BindParams);
+          const sourceStationUuid = (stationRow?.[0] as string) || "";
+          enqueueSaleOutbox(saleUuid, stationId, {
+            schema_version: 1,
+            sale_uuid: saleUuid,
+            source_station_id: stationId,
+            source_station_uuid: sourceStationUuid,
+            sale_timestamp: now,
+            barber_id: effectiveBarberId,
+            barber_username: barberUsername,
+            created_by: session.userId,
+            local_sale_id: saleId,
+            line_items: lineRecords.map((lr) => ({
+              type: lr.type,
+              item_id: lr.itemId,
+              name: lr.name,
+              price: lr.price,
+              cost_price: lr.costPrice,
+              quantity: lr.quantity,
+              line_total: lr.lineTotal,
+            })),
+            total_amount: totalAmount,
+            cash_amount: totalAmount,
+          });
         }
 
         commitTransaction();

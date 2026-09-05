@@ -184,6 +184,69 @@ export function ensureDeviceIdentity(): void {
   if (!inTransaction) saveDatabase();
 }
 
+// The single owner/master station id in this shop. Barbers are expected to
+// resolve their own station (potentially a different role='barber' station)
+// via the device identity.
+export function getOwnerStationId(): number {
+  const row = runOne(
+    "SELECT id FROM stations WHERE role = 'owner' AND is_active = 1 ORDER BY id LIMIT 1",
+  );
+  return (row?.[0] as number) || 1;
+}
+
+export function isOwnerStation(stationId: number): boolean {
+  return stationId === getOwnerStationId();
+}
+
+const OUTBOX_STATUS_PENDING = "pending";
+
+// Inserts a barber-station sale into the durable local outbox for later sync.
+// Runs inside the caller's active transaction so sale + outbox commit/rollback
+// together. INSERT OR IGNORE combined with UNIQUE (sale_uuid, source_station_id)
+// makes duplicate enqueue attempts idempotent: at most one row per outbound sale.
+export function enqueueSaleOutbox(
+  saleUuid: string,
+  sourceStationId: number,
+  payload: Record<string, unknown>,
+): void {
+  const now = getUtcNow();
+  runSql(
+    "INSERT OR IGNORE INTO sync_outbox (sale_uuid, source_station_id, payload_json, status, attempts, next_retry_at, sent_at, error, created_at, updated_at) VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL, ?, ?)",
+    [
+      saleUuid,
+      sourceStationId,
+      JSON.stringify(payload),
+      OUTBOX_STATUS_PENDING,
+      now,
+      now,
+    ] as BindParams,
+  );
+}
+
+// Main-process only: read-only queue inspection for diagnostics/tests. Never
+// exposed to the renderer.
+export function getPendingOutboxEntries(): Array<{
+  id: number;
+  saleUuid: string;
+  sourceStationId: number;
+  payload: Record<string, unknown>;
+  status: string;
+  attempts: number;
+  createdAt: string;
+}> {
+  return runQuery(
+    "SELECT id, sale_uuid, source_station_id, payload_json, status, attempts, created_at FROM sync_outbox ORDER BY id ASC",
+  ).map((r) => ({
+    id: r[0] as number,
+    saleUuid: r[1] as string,
+    sourceStationId: r[2] as number,
+    payload: JSON.parse(r[3] as string) as Record<string, unknown>,
+    status: r[4] as string,
+    attempts: r[5] as number,
+    createdAt: r[6] as string,
+  }));
+}
+
 export function rowToStation(row: SqlValue[]): StationRecord {
   return {
     id: row[0] as number,
@@ -714,6 +777,33 @@ export function runMigrations(): void {
 
     db.run("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)", [
       "004_phase10a_station_identity",
+      getUtcNow(),
+    ] as BindParams);
+  }
+
+  if (!applied.has("005_phase10b_outbox")) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS sync_outbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sale_uuid TEXT NOT NULL,
+        source_station_id INTEGER NOT NULL,
+        payload_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sending', 'sent', 'failed')),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        next_retry_at TEXT,
+        sent_at TEXT,
+        error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (sale_uuid, source_station_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sync_outbox_status_retry
+        ON sync_outbox(status, next_retry_at);
+    `);
+
+    db.run("INSERT INTO _migrations (name, applied_at) VALUES (?, ?)", [
+      "005_phase10b_outbox",
       getUtcNow(),
     ] as BindParams);
   }
